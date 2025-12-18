@@ -26,6 +26,11 @@ export default [
     "type": "error"
   },
   {
+    "inputs": [],
+    "name": "ActiveLoanExists",
+    "type": "error"
+  },
+  {
     "inputs": [
       {
         "internalType": "address",
@@ -34,6 +39,11 @@ export default [
       }
     ],
     "name": "AddressEmptyCode",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "CollateralTooLow",
     "type": "error"
   },
   {
@@ -54,22 +64,17 @@ export default [
   },
   {
     "inputs": [],
+    "name": "ETHNotAccepted",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "FailedCall",
     "type": "error"
   },
   {
     "inputs": [],
-    "name": "FeeTooHigh",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "InsufficientEnabledAssets",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "InsufficientLTVDisparity",
+    "name": "InsufficientCollateralBalance",
     "type": "error"
   },
   {
@@ -79,37 +84,22 @@ export default [
   },
   {
     "inputs": [],
-    "name": "InvalidDexParams",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "InvalidFeeTier",
-    "type": "error"
-  },
-  {
-    "inputs": [],
     "name": "InvalidInitialization",
     "type": "error"
   },
   {
     "inputs": [],
-    "name": "InvalidMultiplier",
+    "name": "InvalidValue",
     "type": "error"
   },
   {
     "inputs": [],
-    "name": "InvalidTargetToken",
+    "name": "LoanNotFound",
     "type": "error"
   },
   {
     "inputs": [],
-    "name": "NoAcquisitionNeeded",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "NoValidAsset",
+    "name": "MismatchedETHValue",
     "type": "error"
   },
   {
@@ -119,7 +109,17 @@ export default [
   },
   {
     "inputs": [],
-    "name": "PoolDoesNotExist",
+    "name": "PaymentTooHigh",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "PaymentTooLow",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "PrincipalTooLow",
     "type": "error"
   },
   {
@@ -131,16 +131,6 @@ export default [
       }
     ],
     "name": "SafeERC20FailedOperation",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "SwapFailed",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "TriggerCooldownActive",
     "type": "error"
   },
   {
@@ -161,119 +151,8 @@ export default [
   },
   {
     "inputs": [],
-    "name": "VYPriceBelowTrigger",
+    "name": "UnsupportedAsset",
     "type": "error"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": false,
-        "internalType": "uint32",
-        "name": "value",
-        "type": "uint32"
-      }
-    ],
-    "name": "AcquireByLTVDisparityCooldownUpdated",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "asset",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "enum ValinityAcquisitionOfficer.TriggerReason",
-        "name": "triggerReason",
-        "type": "uint8"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "vyMinted",
-        "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "vyNet",
-        "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "vyFee",
-        "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "assetAmount",
-        "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "triggerVYPriceUSD",
-        "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "triggerAssetPriceUSD",
-        "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "triggerLTV",
-        "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "executionVYPriceUSD",
-        "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "executionAssetPriceUSD",
-        "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "executionLTV",
-        "type": "uint256"
-      }
-    ],
-    "name": "Acquired",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "asset",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint24",
-        "name": "feeTier",
-        "type": "uint24"
-      }
-    ],
-    "name": "AssetPoolFeeTierUpdated",
-    "type": "event"
   },
   {
     "anonymous": false,
@@ -298,7 +177,68 @@ export default [
         "type": "uint256"
       }
     ],
-    "name": "LowestLTVTriggerMultiplierUpdated",
+    "name": "InterestRatePerSecondUpdated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "enum ValinityLoanOfficer.LoanEventType",
+        "name": "eventType",
+        "type": "uint8"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "borrower",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "asset",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "int256",
+        "name": "deltaCollateral",
+        "type": "int256"
+      },
+      {
+        "indexed": false,
+        "internalType": "int256",
+        "name": "deltaPrincipal",
+        "type": "int256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "processingFeeAmount",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "interestFeeAmount",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "totalCollateral",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "totalPrincipal",
+        "type": "uint256"
+      }
+    ],
+    "name": "LoanEvent",
     "type": "event"
   },
   {
@@ -311,7 +251,33 @@ export default [
         "type": "uint256"
       }
     ],
-    "name": "MTPMultiplierUpdated",
+    "name": "MinimumPrincipalUpdated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint16",
+        "name": "value",
+        "type": "uint16"
+      }
+    ],
+    "name": "ProcessingFeePercentageUpdated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "recipient",
+        "type": "address"
+      }
+    ],
+    "name": "ProcessingFeeRecipientUpdated",
     "type": "event"
   },
   {
@@ -393,57 +359,6 @@ export default [
     "anonymous": false,
     "inputs": [
       {
-        "indexed": false,
-        "internalType": "address",
-        "name": "token",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "address",
-        "name": "to",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "amount",
-        "type": "uint256"
-      }
-    ],
-    "name": "TokenRescued",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": false,
-        "internalType": "address",
-        "name": "recipient",
-        "type": "address"
-      }
-    ],
-    "name": "TransferFeeRecipientUpdated",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "newBps",
-        "type": "uint256"
-      }
-    ],
-    "name": "TransferFeeUpdated",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
         "indexed": true,
         "internalType": "address",
         "name": "implementation",
@@ -468,38 +383,12 @@ export default [
   },
   {
     "inputs": [],
-    "name": "BPS_MULTIPLIER",
-    "outputs": [
-      {
-        "internalType": "uint16",
-        "name": "",
-        "type": "uint16"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
     "name": "DEFAULT_ADMIN_ROLE",
     "outputs": [
       {
         "internalType": "bytes32",
         "name": "",
         "type": "bytes32"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "DEFAULT_FEE_TIER",
-    "outputs": [
-      {
-        "internalType": "uint24",
-        "name": "",
-        "type": "uint24"
       }
     ],
     "stateMutability": "view",
@@ -520,57 +409,36 @@ export default [
   },
   {
     "inputs": [],
-    "name": "acquireByLTVDisparity",
+    "name": "VY_DUST",
     "outputs": [
       {
-        "internalType": "bool",
-        "name": "success",
-        "type": "bool"
-      }
-    ],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "acquireByLTVDisparityCooldown",
-    "outputs": [
-      {
-        "internalType": "uint32",
+        "internalType": "uint256",
         "name": "",
-        "type": "uint32"
+        "type": "uint256"
       }
     ],
     "stateMutability": "view",
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "acquireByPriceDisparity",
-    "outputs": [
-      {
-        "internalType": "bool",
-        "name": "success",
-        "type": "bool"
-      }
-    ],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
     "inputs": [
       {
         "internalType": "address",
-        "name": "",
+        "name": "borrower",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "asset",
         "type": "address"
       }
     ],
-    "name": "assetPoolFeeTiers",
+    "name": "getAccruedInterest",
     "outputs": [
       {
-        "internalType": "uint24",
+        "internalType": "uint256",
         "name": "",
-        "type": "uint24"
+        "type": "uint256"
       }
     ],
     "stateMutability": "view",
@@ -584,11 +452,52 @@ export default [
         "type": "address"
       }
     ],
-    "name": "getLTVF",
+    "name": "getAssetView",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "ltv",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "reserveBalance",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "totalLoaned",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct ValinityLoanOfficer.AssetView",
+        "name": "",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "asset",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "collateral",
+        "type": "uint256"
+      }
+    ],
+    "name": "getBorrowQuote",
     "outputs": [
       {
         "internalType": "uint256",
-        "name": "ltvf",
+        "name": "",
         "type": "uint256"
       }
     ],
@@ -596,13 +505,242 @@ export default [
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "getMTP",
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "asset",
+        "type": "address"
+      }
+    ],
+    "name": "getLTV",
     "outputs": [
       {
         "internalType": "uint256",
-        "name": "mtp",
+        "name": "",
         "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "borrower",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "asset",
+        "type": "address"
+      }
+    ],
+    "name": "getLoan",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "collateral",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "principal",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint64",
+            "name": "openedAt",
+            "type": "uint64"
+          },
+          {
+            "internalType": "uint64",
+            "name": "interestAppliedAt",
+            "type": "uint64"
+          }
+        ],
+        "internalType": "struct ValinityLoanOfficer.Loan",
+        "name": "",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "asset",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "collateralBalance",
+        "type": "uint256"
+      }
+    ],
+    "name": "getLoanConstraints",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "minCollateral",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "maxCollateral",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "minPrincipal",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "maxPrincipal",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct ValinityLoanOfficer.LoanConstraintsView",
+        "name": "",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "borrower",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "asset",
+        "type": "address"
+      }
+    ],
+    "name": "getLoanView",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "collateral",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "principal",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint64",
+            "name": "openedAt",
+            "type": "uint64"
+          },
+          {
+            "internalType": "uint64",
+            "name": "interestAppliedAt",
+            "type": "uint64"
+          },
+          {
+            "internalType": "uint256",
+            "name": "ltv",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "accruedInterest",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "netCollateral",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct ValinityLoanOfficer.LoanView",
+        "name": "",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "asset",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "collateralBalance",
+        "type": "uint256"
+      }
+    ],
+    "name": "getMaxPrincipal",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "asset",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "collateral",
+        "type": "uint256"
+      }
+    ],
+    "name": "getNewLoanView",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "principal",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "ltv",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "fee",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "netAmount",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct ValinityLoanOfficer.NewLoanView",
+        "name": "",
+        "type": "tuple"
       }
     ],
     "stateMutability": "view",
@@ -616,6 +754,52 @@ export default [
         "internalType": "address",
         "name": "",
         "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "borrower",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "asset",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "payment",
+        "type": "uint256"
+      }
+    ],
+    "name": "getRepayView",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "collateralRatio",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "collateralReturned",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "principal",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct ValinityLoanOfficer.RepayView",
+        "name": "",
+        "type": "tuple"
       }
     ],
     "stateMutability": "view",
@@ -648,29 +832,11 @@ export default [
         "type": "address"
       }
     ],
-    "name": "getSpotPriceUSD",
+    "name": "getTotalLoaned",
     "outputs": [
       {
         "internalType": "uint256",
         "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "getUniswapVYUSDCReserves",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "x",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "y",
         "type": "uint256"
       }
     ],
@@ -723,6 +889,24 @@ export default [
     "inputs": [
       {
         "internalType": "address",
+        "name": "asset",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "additionalCollateral",
+        "type": "uint256"
+      }
+    ],
+    "name": "increaseLoan",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
         "name": "registrarAddress",
         "type": "address"
       },
@@ -733,22 +917,7 @@ export default [
       },
       {
         "internalType": "address",
-        "name": "uniswapV2RouterAddress",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "uniswapV3RouterAddress",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "uniswapV3FactoryAddress",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "usdcAddr",
+        "name": "wethAddress",
         "type": "address"
       }
     ],
@@ -759,7 +928,7 @@ export default [
   },
   {
     "inputs": [],
-    "name": "lastLTVDisparityTrigger",
+    "name": "interestRatePerSecond",
     "outputs": [
       {
         "internalType": "uint256",
@@ -771,8 +940,67 @@ export default [
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "borrower",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "asset",
+        "type": "address"
+      }
+    ],
+    "name": "isActive",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "borrower",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "asset",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "collateral",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "principal",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct ValinityLoanOfficer.MigrateLoanVars[]",
+        "name": "loanDataArray",
+        "type": "tuple[]"
+      }
+    ],
+    "name": "migrateLoans",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
     "inputs": [],
-    "name": "lastPriceDisparityTrigger",
+    "name": "minimumPrincipal",
     "outputs": [
       {
         "internalType": "uint256",
@@ -784,13 +1012,31 @@ export default [
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "lowestLTVTriggerMultiplier",
-    "outputs": [
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "asset",
+        "type": "address"
+      },
       {
         "internalType": "uint256",
-        "name": "",
+        "name": "collateral",
         "type": "uint256"
+      }
+    ],
+    "name": "openLoan",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "processingFeePercentage",
+    "outputs": [
+      {
+        "internalType": "uint16",
+        "name": "",
+        "type": "uint16"
       }
     ],
     "stateMutability": "view",
@@ -798,12 +1044,12 @@ export default [
   },
   {
     "inputs": [],
-    "name": "mtpMultiplier",
+    "name": "processingFeeRecipient",
     "outputs": [
       {
-        "internalType": "uint256",
+        "internalType": "address",
         "name": "",
-        "type": "uint256"
+        "type": "address"
       }
     ],
     "stateMutability": "view",
@@ -844,23 +1090,18 @@ export default [
     "inputs": [
       {
         "internalType": "address",
-        "name": "token",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "to",
+        "name": "asset",
         "type": "address"
       },
       {
         "internalType": "uint256",
-        "name": "amount",
+        "name": "payment",
         "type": "uint256"
       }
     ],
-    "name": "rescueToken",
+    "name": "repayLoan",
     "outputs": [],
-    "stateMutability": "nonpayable",
+    "stateMutability": "payable",
     "type": "function"
   },
   {
@@ -884,30 +1125,12 @@ export default [
   {
     "inputs": [
       {
-        "internalType": "uint32",
-        "name": "newCooldown",
-        "type": "uint32"
+        "internalType": "uint256",
+        "name": "value",
+        "type": "uint256"
       }
     ],
-    "name": "setAcquireByLTVDisparityCooldown",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "asset",
-        "type": "address"
-      },
-      {
-        "internalType": "uint24",
-        "name": "feeTier",
-        "type": "uint24"
-      }
-    ],
-    "name": "setAssetPoolFeeTier",
+    "name": "setInterestRatePerSecond",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -916,24 +1139,11 @@ export default [
     "inputs": [
       {
         "internalType": "uint256",
-        "name": "newMultiplier",
+        "name": "value",
         "type": "uint256"
       }
     ],
-    "name": "setLowestLTVTriggerMultiplier",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "newMultiplier",
-        "type": "uint256"
-      }
-    ],
-    "name": "setMTPMultiplier",
+    "name": "setMinimumPrincipal",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -942,11 +1152,11 @@ export default [
     "inputs": [
       {
         "internalType": "uint16",
-        "name": "newBps",
+        "name": "value",
         "type": "uint16"
       }
     ],
-    "name": "setTransferFeeBps",
+    "name": "setProcessingFeePercentage",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -959,7 +1169,7 @@ export default [
         "type": "address"
       }
     ],
-    "name": "setTransferFeeRecipient",
+    "name": "setProcessingFeeRecipient",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -984,32 +1194,6 @@ export default [
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "transferFeeBps",
-    "outputs": [
-      {
-        "internalType": "uint16",
-        "name": "",
-        "type": "uint16"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "transferFeeRecipient",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
     "inputs": [
       {
         "internalType": "address",
@@ -1028,17 +1212,7 @@ export default [
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "usdcAddress",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
+    "stateMutability": "payable",
+    "type": "receive"
   }
 ] as const;
-

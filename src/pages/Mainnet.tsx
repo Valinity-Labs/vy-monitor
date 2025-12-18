@@ -3,21 +3,21 @@ import omit from 'lodash/omit';
 import startCase from 'lodash/startCase';
 import { Suspense, type JSX } from 'react';
 import { createPublicClient, getContract, http, type Address } from 'viem';
-import { sepolia } from 'viem/chains';
+import { mainnet } from 'viem/chains';
 import { Value } from '../components/core';
-import { CONTRACT_ACRONYMS, TESTNET_RPC_URL } from '../config';
+import { CONTRACT_ACRONYMS, MAINNET_RPC_URL } from '../config';
 import { Amount, USD, VY } from '../models';
 import networks from '../networks';
 import { getRegisteredAddresses } from '../resources/getContractAddresses';
 import createResource from '../utils/createResource';
 
 const client = createPublicClient({
-  chain: sepolia,
-  transport: http(TESTNET_RPC_URL),
+  chain: mainnet,
+  transport: http(MAINNET_RPC_URL),
 });
 
 const dataResource = createResource(async () => {
-  const networkName = 'sepolia';
+  const networkName = 'mainnet';
   const { abis, addresses: staticAddrs } = networks[networkName]
   const registeredAddrs = await getRegisteredAddresses(client, networkName);
   const addresses = { ...staticAddrs, ...registeredAddrs };
