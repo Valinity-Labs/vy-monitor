@@ -1,4 +1,5 @@
 import './App.css';
+import Mainnet from './pages/Mainnet';
 import Testnet from './pages/Testnet';
 
 function App() {
@@ -13,7 +14,7 @@ function App() {
         <a href={`?network=${otherNetwork}`}>[{network}]</a>
       </header>
 
-      {network === 'mainnet' ? null : <Testnet />}
+      {network === 'mainnet' ? <Mainnet /> : <Testnet />}
     </>
   )
 }

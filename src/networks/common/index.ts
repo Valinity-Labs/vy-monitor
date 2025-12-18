@@ -11,6 +11,9 @@ export default {
     'ValinityCapOfficer',
     'ValinityLoanOfficer',
     'ValinityPortal'
-  ]
+  ],
+  addresses: {
+    Company: '0x09756C9f3A542cc5ecEF78F83c8Ed6f48c241Be4'
+  }
 } as const;
 

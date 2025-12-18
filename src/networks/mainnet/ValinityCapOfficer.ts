@@ -37,6 +37,11 @@ export default [
     "type": "error"
   },
   {
+    "inputs": [],
+    "name": "CapUnderflow",
+    "type": "error"
+  },
+  {
     "inputs": [
       {
         "internalType": "address",
@@ -59,32 +64,17 @@ export default [
   },
   {
     "inputs": [],
-    "name": "FeeTooHigh",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "InsufficientEnabledAssets",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "InsufficientLTVDisparity",
-    "type": "error"
-  },
-  {
-    "inputs": [],
     "name": "InvalidAddress",
     "type": "error"
   },
   {
     "inputs": [],
-    "name": "InvalidDexParams",
+    "name": "InvalidAsset",
     "type": "error"
   },
   {
     "inputs": [],
-    "name": "InvalidFeeTier",
+    "name": "InvalidFloor",
     "type": "error"
   },
   {
@@ -94,22 +84,7 @@ export default [
   },
   {
     "inputs": [],
-    "name": "InvalidMultiplier",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "InvalidTargetToken",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "NoAcquisitionNeeded",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "NoValidAsset",
+    "name": "InvalidInterval",
     "type": "error"
   },
   {
@@ -119,28 +94,7 @@ export default [
   },
   {
     "inputs": [],
-    "name": "PoolDoesNotExist",
-    "type": "error"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "token",
-        "type": "address"
-      }
-    ],
-    "name": "SafeERC20FailedOperation",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "SwapFailed",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "TriggerCooldownActive",
+    "name": "ReductionTooSoon",
     "type": "error"
   },
   {
@@ -161,8 +115,26 @@ export default [
   },
   {
     "inputs": [],
-    "name": "VYPriceBelowTrigger",
+    "name": "UnsupportedAsset",
     "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ZeroAmount",
+    "type": "error"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "value",
+        "type": "uint256"
+      }
+    ],
+    "name": "AssetCapFloorUpdated",
+    "type": "event"
   },
   {
     "anonymous": false,
@@ -174,7 +146,7 @@ export default [
         "type": "uint32"
       }
     ],
-    "name": "AcquireByLTVDisparityCooldownUpdated",
+    "name": "AssetCapReductionIntervalUpdated",
     "type": "event"
   },
   {
@@ -188,72 +160,18 @@ export default [
       },
       {
         "indexed": false,
-        "internalType": "enum ValinityAcquisitionOfficer.TriggerReason",
-        "name": "triggerReason",
-        "type": "uint8"
-      },
-      {
-        "indexed": false,
         "internalType": "uint256",
-        "name": "vyMinted",
+        "name": "reductionAmount",
         "type": "uint256"
       },
       {
         "indexed": false,
         "internalType": "uint256",
-        "name": "vyNet",
-        "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "vyFee",
-        "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "assetAmount",
-        "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "triggerVYPriceUSD",
-        "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "triggerAssetPriceUSD",
-        "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "triggerLTV",
-        "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "executionVYPriceUSD",
-        "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "executionAssetPriceUSD",
-        "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "executionLTV",
+        "name": "newCap",
         "type": "uint256"
       }
     ],
-    "name": "Acquired",
+    "name": "CapReductionApplied",
     "type": "event"
   },
   {
@@ -267,12 +185,75 @@ export default [
       },
       {
         "indexed": false,
-        "internalType": "uint24",
-        "name": "feeTier",
-        "type": "uint24"
+        "internalType": "uint256",
+        "name": "oldCap",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "newCap",
+        "type": "uint256"
       }
     ],
-    "name": "AssetPoolFeeTierUpdated",
+    "name": "CapUpdated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "from",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "to",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      }
+    ],
+    "name": "FeesMigrated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      }
+    ],
+    "name": "FeesProcessed",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "treasury",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      }
+    ],
+    "name": "FeesSentToTreasury",
     "type": "event"
   },
   {
@@ -286,32 +267,6 @@ export default [
       }
     ],
     "name": "Initialized",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "value",
-        "type": "uint256"
-      }
-    ],
-    "name": "LowestLTVTriggerMultiplierUpdated",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "value",
-        "type": "uint256"
-      }
-    ],
-    "name": "MTPMultiplierUpdated",
     "type": "event"
   },
   {
@@ -393,57 +348,6 @@ export default [
     "anonymous": false,
     "inputs": [
       {
-        "indexed": false,
-        "internalType": "address",
-        "name": "token",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "address",
-        "name": "to",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "amount",
-        "type": "uint256"
-      }
-    ],
-    "name": "TokenRescued",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": false,
-        "internalType": "address",
-        "name": "recipient",
-        "type": "address"
-      }
-    ],
-    "name": "TransferFeeRecipientUpdated",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "newBps",
-        "type": "uint256"
-      }
-    ],
-    "name": "TransferFeeUpdated",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
         "indexed": true,
         "internalType": "address",
         "name": "implementation",
@@ -468,19 +372,6 @@ export default [
   },
   {
     "inputs": [],
-    "name": "BPS_MULTIPLIER",
-    "outputs": [
-      {
-        "internalType": "uint16",
-        "name": "",
-        "type": "uint16"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
     "name": "DEFAULT_ADMIN_ROLE",
     "outputs": [
       {
@@ -494,12 +385,12 @@ export default [
   },
   {
     "inputs": [],
-    "name": "DEFAULT_FEE_TIER",
+    "name": "OFFICER_ROLE",
     "outputs": [
       {
-        "internalType": "uint24",
+        "internalType": "bytes32",
         "name": "",
-        "type": "uint24"
+        "type": "bytes32"
       }
     ],
     "stateMutability": "view",
@@ -520,20 +411,27 @@ export default [
   },
   {
     "inputs": [],
-    "name": "acquireByLTVDisparity",
-    "outputs": [
-      {
-        "internalType": "bool",
-        "name": "success",
-        "type": "bool"
-      }
-    ],
+    "name": "applyCapReductions",
+    "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
   },
   {
     "inputs": [],
-    "name": "acquireByLTVDisparityCooldown",
+    "name": "assetCapFloor",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "assetCapReductionInterval",
     "outputs": [
       {
         "internalType": "uint32",
@@ -545,15 +443,20 @@ export default [
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "acquireByPriceDisparity",
-    "outputs": [
+    "inputs": [
       {
-        "internalType": "bool",
-        "name": "success",
-        "type": "bool"
+        "internalType": "address",
+        "name": "asset",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
       }
     ],
+    "name": "decreaseAssetCap",
+    "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
   },
@@ -561,16 +464,16 @@ export default [
     "inputs": [
       {
         "internalType": "address",
-        "name": "",
+        "name": "asset",
         "type": "address"
       }
     ],
-    "name": "assetPoolFeeTiers",
+    "name": "getAssetCap",
     "outputs": [
       {
-        "internalType": "uint24",
+        "internalType": "uint256",
         "name": "",
-        "type": "uint24"
+        "type": "uint256"
       }
     ],
     "stateMutability": "view",
@@ -584,24 +487,11 @@ export default [
         "type": "address"
       }
     ],
-    "name": "getLTVF",
+    "name": "getAssetCollateralized",
     "outputs": [
       {
         "internalType": "uint256",
-        "name": "ltvf",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "getMTP",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "mtp",
+        "name": "",
         "type": "uint256"
       }
     ],
@@ -635,43 +525,6 @@ export default [
         "internalType": "bytes32",
         "name": "",
         "type": "bytes32"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "asset",
-        "type": "address"
-      }
-    ],
-    "name": "getSpotPriceUSD",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "getUniswapVYUSDCReserves",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "x",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "y",
-        "type": "uint256"
       }
     ],
     "stateMutability": "view",
@@ -723,32 +576,30 @@ export default [
     "inputs": [
       {
         "internalType": "address",
+        "name": "asset",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      }
+    ],
+    "name": "increaseAssetCap",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
         "name": "registrarAddress",
         "type": "address"
       },
       {
         "internalType": "address",
         "name": "adminAddress",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "uniswapV2RouterAddress",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "uniswapV3RouterAddress",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "uniswapV3FactoryAddress",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "usdcAddr",
         "type": "address"
       }
     ],
@@ -759,54 +610,28 @@ export default [
   },
   {
     "inputs": [],
-    "name": "lastLTVDisparityTrigger",
+    "name": "lastReductionTimestamp",
     "outputs": [
       {
-        "internalType": "uint256",
+        "internalType": "uint64",
         "name": "",
-        "type": "uint256"
+        "type": "uint64"
       }
     ],
     "stateMutability": "view",
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "lastPriceDisparityTrigger",
-    "outputs": [
+    "inputs": [
       {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
+        "internalType": "address",
+        "name": "to",
+        "type": "address"
       }
     ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "lowestLTVTriggerMultiplier",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "mtpMultiplier",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
+    "name": "migrateTo",
+    "outputs": [],
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -843,29 +668,6 @@ export default [
   {
     "inputs": [
       {
-        "internalType": "address",
-        "name": "token",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "to",
-        "type": "address"
-      },
-      {
-        "internalType": "uint256",
-        "name": "amount",
-        "type": "uint256"
-      }
-    ],
-    "name": "rescueToken",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
         "internalType": "bytes32",
         "name": "role",
         "type": "bytes32"
@@ -884,30 +686,17 @@ export default [
   {
     "inputs": [
       {
-        "internalType": "uint32",
-        "name": "newCooldown",
-        "type": "uint32"
-      }
-    ],
-    "name": "setAcquireByLTVDisparityCooldown",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
         "internalType": "address",
         "name": "asset",
         "type": "address"
       },
       {
-        "internalType": "uint24",
-        "name": "feeTier",
-        "type": "uint24"
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
       }
     ],
-    "name": "setAssetPoolFeeTier",
+    "name": "setAssetCap",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -916,11 +705,11 @@ export default [
     "inputs": [
       {
         "internalType": "uint256",
-        "name": "newMultiplier",
+        "name": "newFloor",
         "type": "uint256"
       }
     ],
-    "name": "setLowestLTVTriggerMultiplier",
+    "name": "setAssetCapFloor",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -928,38 +717,12 @@ export default [
   {
     "inputs": [
       {
-        "internalType": "uint256",
-        "name": "newMultiplier",
-        "type": "uint256"
+        "internalType": "uint32",
+        "name": "newInterval",
+        "type": "uint32"
       }
     ],
-    "name": "setMTPMultiplier",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint16",
-        "name": "newBps",
-        "type": "uint16"
-      }
-    ],
-    "name": "setTransferFeeBps",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "recipient",
-        "type": "address"
-      }
-    ],
-    "name": "setTransferFeeRecipient",
+    "name": "setAssetCapReductionInterval",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -984,32 +747,6 @@ export default [
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "transferFeeBps",
-    "outputs": [
-      {
-        "internalType": "uint16",
-        "name": "",
-        "type": "uint16"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "transferFeeRecipient",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
     "inputs": [
       {
         "internalType": "address",
@@ -1025,19 +762,6 @@ export default [
     "name": "upgradeToAndCall",
     "outputs": [],
     "stateMutability": "payable",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "usdcAddress",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
     "type": "function"
   }
 ] as const;
