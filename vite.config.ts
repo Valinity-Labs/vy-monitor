@@ -7,6 +7,19 @@ export default defineConfig({
   build: {
     outDir: 'docs'
   },
+  server: {
+    proxy: {
+      '/rpc-proxy': {
+        target: 'http://localhost:9800',
+        changeOrigin: true,
+        configure: (proxy) => {
+          proxy.on('proxyReq', (proxyReq) => {
+            proxyReq.removeHeader('Accept-Encoding');
+          });
+        }
+      }
+    }
+  },
   plugins: [
     react({
       babel: {

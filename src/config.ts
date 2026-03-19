@@ -1,24 +1,24 @@
-export const MAINNET_RPC_URL = 'https://api.valinity.io/rpc-proxy'
-export const TESTNET_RPC_URL = 'https://api-dev.valinity.io/rpc-proxy'
+const isDev = import.meta.env.DEV;
 
-export const REGISTERED_CONTRACT_NAMES = [
-  'ValinityAssetRegistry',
-  'ValinityToken',
-  'ValinityAcquisitionTreasury',
-  'ValinityReserveTreasury',
-  'ValinityAcquisitionOfficer',
-  'ValinityCapOfficer',
-  'ValinityLoanOfficer',
-  // 'ValinityPortal'
-]
+export const MAINNET_RPC_URL = isDev ? '/rpc-proxy' : 'https://api.valinity.io/rpc-proxy'
+export const TESTNET_RPC_URL = isDev ? '/rpc-proxy' : 'https://api-dev.valinity.io/rpc-proxy'
 
-export const CONTRACT_ACRONYMS = {
-  ValinityAssetRegistry: 'VAR',
+export const CONTRACT_ACRONYMS: Record<string, string> = {
+  AdminSafe: 'AS',
   ValinityToken: 'VY',
-  ValinityAcquisitionTreasury: 'VAT',
+  ValinityYieldTreasury: 'VYT',
   ValinityReserveTreasury: 'VRT',
-  ValinityAcquisitionOfficer: 'VAO',
   ValinityCapOfficer: 'VCO',
   ValinityLoanOfficer: 'VLO',
-  ValinityPortal: 'VP'
+  ValinityAcquisitionOfficer: 'VAO',
+  ValinityPortal: 'VP',
+  VDAX: 'VDAX',
+  ValinityDAX: 'VDAX',
+  ValinityGovernanceCommittee: 'VGC',
+  ValinityExecutor: 'VE',
+  ValinityGovernanceOfficer: 'VGO',
+  ValinityMEVBot: 'VMEV',
+  ValinityBuybackOfficer: 'VBO',
+  ValinityDCAOfficer: 'VDCA',
+  ValinityYieldOfficer: 'VYO'
 }
