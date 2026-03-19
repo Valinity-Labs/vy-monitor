@@ -60,4 +60,43 @@ th {
   .box {
     background: #eee;
   }
+
+  .box--error {
+    background: #fff0f0;
+  }
+
+  .error-item {
+    color: #c00;
+  }
+}
+
+.box--error {
+  border-left: 3px solid #e74c3c;
+  background: #2a1a1a;
+}
+
+.error-badge {
+  margin-left: 0.5rem;
+  padding: 0.15rem 0.4rem;
+  font-size: 0.7rem;
+  font-weight: bold;
+  color: #fff;
+  background: #e74c3c;
+  border-radius: 0.25rem;
+  vertical-align: middle;
+}
+
+.error-list {
+  margin-bottom: 0.5rem;
+  padding: 0.4rem 0.6rem;
+  background: rgba(231, 76, 60, 0.1);
+  border-radius: 0.25rem;
+  font-size: 0.75rem;
+}
+
+.error-item {
+  color: #e74c3c;
+  padding: 0.15rem 0;
+  word-break: break-word;
+  white-space: normal;
 }

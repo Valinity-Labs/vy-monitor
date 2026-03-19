@@ -7,6 +7,25 @@ export default defineConfig({
   build: {
     outDir: 'docs'
   },
+  server: {
+    proxy: {
+      '/api-mainnet': {
+        target: 'https://api.valinity.io',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api-mainnet/, ''),
+      },
+      '/api-testnet': {
+        target: 'http://localhost:9800',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api-testnet/, ''),
+        configure: (proxy) => {
+          proxy.on('proxyReq', (proxyReq) => {
+            proxyReq.removeHeader('Accept-Encoding');
+          });
+        }
+      }
+    }
+  },
   plugins: [
     react({
       babel: {
