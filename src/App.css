@@ -981,3 +981,53 @@ th {
   color: var(--vy-ink-3);
   letter-spacing: 0.03em;
 }
+
+/* DAX / VDAO DAX pool panels: two side by side, stacked on phones (see below). */
+.vy-pool-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 5px 8px;
+  align-items: start;
+  margin-top: 8px;
+}
+
+/* ── Phones ─────────────────────────────────────────────────────────────────
+   The price section renders outside .monitor, so it takes the same side padding. On narrow
+   screens nothing may run off the edge: the tape becomes two-line rows, table text wraps,
+   and the side-by-side pool panels stack. */
+.vy-price { padding: 0 1rem; }
+
+@media (max-width: 40rem) {
+  .vy-price { padding: 0 0.75rem; }
+  .monitor { padding: 1rem 0.75rem; }
+  .box { padding: 0.75rem; }
+  .box td { white-space: normal; }
+  .box td + td,
+  .box th + th { padding-left: 0.6rem; }
+  .vy-pool-grid { grid-template-columns: minmax(0, 1fr); }
+
+  /* Tape: each trade on two lines — time · side · price, then wallet · tx · amount · value. */
+  .vy-tape__table thead { display: none; }
+  .vy-tape__table,
+  .vy-tape__table tbody { display: block; }
+  .vy-tape__table tr {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
+    grid-template-areas:
+      "time time side price"
+      "addr tx amount value";
+    column-gap: 0.6rem;
+    row-gap: 0.15rem;
+    padding: 0.45rem 0;
+    border-bottom: 1px solid var(--vy-rule);
+  }
+  .vy-tape__table td { padding: 0; border: 0; }
+  .vy-tape__time { grid-area: time; }
+  .vy-tape__c-side { grid-area: side; text-align: right; }
+  .vy-tape__price { grid-area: price; }
+  .vy-tape__price::before { content: '@ '; color: var(--vy-ink-3); }
+  .vy-tape__c-addr { grid-area: addr; }
+  .vy-tape__c-tx { grid-area: tx; }
+  .vy-tape__c-amount { grid-area: amount; }
+  .vy-tape__c-value { grid-area: value; }
+}

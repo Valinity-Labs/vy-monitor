@@ -69,21 +69,21 @@ export function TradeTape({
               return (
                 <tr key={t.key}>
                   <td className="vy-tape__time">{when(t.ts)}</td>
-                  <td>
+                  <td className="vy-tape__c-side">
                     <span className={`vy-tape__side vy-tape__side--${t.side}`}>{t.side}</span>
                   </td>
                   <td className="vy-tape__num vy-tape__price">{price(t.price)}</td>
-                  <td className="vy-tape__num">
+                  <td className="vy-tape__num vy-tape__c-amount">
                     {qty(t.qty)} <span className="vy-tape__sym">{ERAS[t.era].symbol}</span>
                   </td>
-                  <td className="vy-tape__num">{money(t.usd)}</td>
-                  <td>
+                  <td className="vy-tape__num vy-tape__c-value">{money(t.usd)}</td>
+                  <td className="vy-tape__c-addr">
                     <a href={`${explorer}/address/${t.address}`} target="_blank" rel="noreferrer"
                       className="vy-tape__addr" title={t.address}>
                       {shortAddr(t.address)}
                     </a>
                   </td>
-                  <td>
+                  <td className="vy-tape__c-tx">
                     <a href={t.explorerUrl} target="_blank" rel="noreferrer"
                       className="vy-tape__tx" title={t.txHash}>↗</a>
                   </td>

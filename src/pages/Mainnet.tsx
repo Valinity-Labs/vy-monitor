@@ -1410,13 +1410,7 @@ function Content({ data, volume, volProgress, holders }: { data: MonitorData; vo
             return (
             <>
               <h3 style={{ marginTop: '12px' }}>Pools</h3>
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)',
-                gap: '5px 8px',
-                alignItems: 'start',
-                marginTop: '8px',
-              }}>
+              <div className="vy-pool-grid">
                 {pools.map((pool) => (
                   <div key={pool.symbol} className="box" style={{ marginBottom: 0 }}>
                     <h4>{pool.symbol}</h4>
@@ -1449,13 +1443,7 @@ function Content({ data, volume, volProgress, holders }: { data: MonitorData; vo
           {data.vdaoDax.pools.length > 0 && (
             <>
               <h3 style={{ marginTop: '12px' }}>Pools</h3>
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)',
-                gap: '5px 8px',
-                alignItems: 'start',
-                marginTop: '8px',
-              }}>
+              <div className="vy-pool-grid">
                 {data.vdaoDax.pools.map((pool, i) => (
                   <div key={i} className="box" style={{ marginBottom: 0 }}>
                     <h4>{pool.vdaoSymbol}/{pool.assetSymbol}</h4>

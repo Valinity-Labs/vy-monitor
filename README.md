@@ -111,9 +111,10 @@ La primera sección del monitor es el precio de Valinity en velas (TradingView A
 con un tape estilo DexScreener debajo: cada operación con su precio, la dirección que la hizo,
 la cantidad, el valor en USD y el enlace al explorador (las 100 más recientes).
 
-Abre mostrando **sólo el pool actual** (VY/USDC en Uniswap V2), en velas semanales. El botón
-**"Since Genesis"** cambia gráfico, estadísticas y tape a la vez para mostrar todos los contratos
-desde 2021, en velas semanales; **"← Live Pool"** vuelve al pool actual. Los botones **30D · 3M · 6M · 12M
+Abre mostrando **sólo el pool actual** (VY/USDC en Uniswap V2) en los **últimos 3 meses**, con
+velas diarias y las líneas de BTC/ETH/oro encendidas. El botón **"Since Genesis"** cambia
+gráfico, estadísticas y tape a la vez para mostrar todos los contratos desde 2021 (abre en
+**All**, velas semanales); **"← Live Pool"** vuelve al pool actual. Los botones **30D · 3M · 6M · 12M
 · All** eligen la ventana de tiempo en ambas vistas; en la del pool actual las líneas de
 BTC/ETH/oro arrancan en el precio de VY al inicio de la ventana elegida.
 
@@ -124,8 +125,8 @@ ese precio y luego se mueve con el rendimiento en USD de su activo, así que se 
 con las velas; encima del gráfico se muestra el rendimiento de cada uno desde ese día. Los
 precios son los feeds on-chain de Chainlink (BTC/USD, ETH/USD, XAU/USD), y cada línea se lee en
 el instante de cierre de su vela (`barCloseTime`), no en su apertura. Las tres líneas empiezan
-**apagadas**: se encienden con los botones BTC / ETH / Gold sobre el gráfico o con el 👁 junto a
-cada nombre en la leyenda del gráfico, y ambos controles quedan sincronizados.
+**encendidas**: se apagan y encienden con los botones BTC / ETH / Gold sobre el gráfico o con el
+👁 junto a cada nombre en la leyenda del gráfico, y ambos controles quedan sincronizados.
 
 Valinity ha operado bajo varios contratos en dos cadenas. Cada uno es una "era", y todas se
 aplanan en una sola lista `Trade[]` (`src/utils/priceHistory.ts`), de modo que el gráfico y el

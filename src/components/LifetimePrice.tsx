@@ -24,9 +24,9 @@ const LIVE_ERA: EraId = 'vy-current';
 
 type View = 'live' | 'genesis';
 
-// Both views open on WEEKLY candles: ~23 for the current pool, ~230 for the lineage (at daily the
-// lineage would be 1,600 sub-pixel candles that read as a line). The range buttons switch to finer
-// candles for shorter windows.
+// A view's own resolution applies on "All": WEEKLY for both — ~23 candles for the current pool,
+// ~230 for the lineage (at daily the lineage would be 1,600 sub-pixel candles that read as a line).
+// The current pool actually opens on 3M, whose daily candles come from RANGES.
 const VIEWS: Record<View, { symbol: string; exchange: string; resolution: string; sub: string }> = {
   live: {
     symbol: 'VY', exchange: 'Uniswap V2', resolution: '1W',
@@ -85,14 +85,21 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
+// Each view's opening range: the current pool opens on its last three months (daily candles);
+// Since Genesis opens on the whole history, which is the point of that view.
+const DEFAULT_RANGE: Record<View, RangeKey> = { live: '3m', genesis: 'all' };
+const openingRange = (v: View) => ({ key: DEFAULT_RANGE[v], from: rangeStart(DEFAULT_RANGE[v], Date.now()) });
+
 export function LifetimePrice() {
   const [view, setView] = useState<View>('live');
-  // The start is fixed when the button is pressed, so "last 30 days" does not creep forward (and
+  // The start is fixed when the range is chosen, so "last 3 months" does not creep forward (and
   // rebuild the chart) on every re-render.
-  const [range, setRange] = useState<{ key: RangeKey; from: number | null }>({ key: 'all', from: null });
-  // The reserve-asset lines start OFF — the viewer asks for them, here or with the chart legend's
-  // eye, and the two stay in step.
-  const [linesOn, setLinesOn] = useState<Record<string, boolean>>({});
+  const [range, setRange] = useState<{ key: RangeKey; from: number | null }>(() => openingRange('live'));
+  // The reserve-asset lines start ON; the viewer can hide any of them here or with the chart
+  // legend's eye, and the two stay in step.
+  const [linesOn, setLinesOn] = useState<Record<string, boolean>>(
+    () => Object.fromEntries(BENCHMARKS.map((b) => [b.key, true]))
+  );
   const snapshot = useMemo(() => loadAllTrades(), []);
   const tail = useLiveTail();
 
@@ -189,7 +196,11 @@ export function LifetimePrice() {
           <button
             type="button"
             className="vy-price__toggle"
-            onClick={() => setView(view === 'live' ? 'genesis' : 'live')}
+            onClick={() => {
+              const next = view === 'live' ? 'genesis' : 'live';
+              setView(next);
+              setRange(openingRange(next));
+            }}
             title={view === 'live' ? 'Every Valinity contract since 2021' : 'Back to the current VY/USDC pool'}
           >
             {view === 'live' ? 'Since Genesis' : '← Live Pool'}
@@ -230,7 +241,7 @@ export function LifetimePrice() {
             );
           })}
           <span className="vy-price__bench-hint">
-            Click BTC, ETH or Gold to draw it on the chart — or use the 👁 next to its name in the chart legend
+            Click BTC, ETH or Gold to show or hide it on the chart — or use the 👁 next to its name in the chart legend
           </span>
         </div>
       )}
