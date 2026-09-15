@@ -22,3 +22,15 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Resumable scan checkpoint for scripts/build-mfc-history.mjs (derived data).
+.cache
+
+# TradingView Advanced Charts is licensed and must NEVER be committed to this PUBLIC repo.
+# The build downloads it from app.valinity.io and verifies every file
+# (node scripts/fetch-charting-library.mjs) — run that for local dev too.
+public/charting_library/
+
+# Build output. GitHub Actions builds and publishes the site; nothing is served from a
+# committed folder any more.
+docs/

@@ -5,7 +5,7 @@ import { useEffect, useState, type JSX } from 'react';
 import { createPublicClient, http, parseAbiItem, type Address } from 'viem';
 import { mainnet } from 'viem/chains';
 import { Value } from '../components/core';
-import { BackingTiles, HoldingsTable, EraLadder, TradingVolume, MarketMakerDesk } from '../components/BalanceSheet';
+import { BackingTiles, HoldingsTable, EraLadder, TradingVolume, MarketMakerDesk, type AssetMult } from '../components/BalanceSheet';
 import type { VolumeData } from '../components/BalanceSheet';
 import { CONTRACT_ACRONYMS, MAINNET_RPC_URL, RPC_HTTP_OPTS } from '../config';
 import { Amount, USD, VY } from '../models';
@@ -13,6 +13,8 @@ import type { Currency } from '../models';
 import networks from '../networks';
 import { indexTxFlow, bucketFlow, type FlowProgress } from '../utils/txFlow';
 import { scanFullHistory } from '../utils/logs';
+import { countHolders } from '../utils/holders';
+import { LifetimePrice } from '../components/LifetimePrice';
 
 
 /**
@@ -149,6 +151,7 @@ const fetchData = async () => {
         { ...vyTokenConfig, functionName: 'totalSupply' },
         { ...pairConfig, functionName: 'getReserves' },
         { ...pairConfig, functionName: 'token0' },
+        { ...vyTokenConfig, functionName: 'MAX_SUPPLY' },
       ],
       allowFailure: true
     }),
@@ -157,6 +160,9 @@ const fetchData = async () => {
   const vyTotalSupply = overviewResults[0].status === 'success'
     ? overviewResults[0].result as bigint
     : (() => { overviewErrors.push(`totalSupply: ${(overviewResults[0].error as Error).message ?? 'reverted'}`); return 0n; })();
+  const vyMaxSupply = overviewResults[3].status === 'success'
+    ? overviewResults[3].result as bigint
+    : (() => { overviewErrors.push(`MAX_SUPPLY: ${(overviewResults[3].error as Error).message ?? 'reverted'}`); return 0n; })();
   const USDC: Currency = { symbol: 'USDC', decimals: 6 };
   let vyReserve = 0n;
   let usdcReserve = 0n;
@@ -731,6 +737,41 @@ const fetchData = async () => {
     ? Math.round(Number(termRaw[0].result as unknown as number) / 86_400)
     : 0;
 
+  // ─── VY's yield ceiling — NOT era-linked ───────────────────
+  // VY is stakeable like the four assets above, so it belongs on this panel, but it
+  // is NOT priced by the era model and must not be drawn as if it were:
+  //
+  //   • Every VY stake lives on the VYO's VY lane (VSR.totalStakedVY is non-zero
+  //     while VMMO.books(VY) is empty), and the VYO sets that rate from its OWN
+  //     VYT-coverage formula, capped at PREMIUM_MAX_BPS. It never reads `era`.
+  //   • Proof it does not follow the anchor: on 2026-08-06 VBSO's anchor was 888
+  //     and the VYO still quoted VY 542 bps — the same 542 it quotes today at an
+  //     anchor of 1776. An era-linked rate would have halved.
+  //   • VBSO.quoteYieldBps(t, VY, user) does answer (821 bps at tier 3), but on the
+  //     5556 "unset" default — assetMultBps(VY) was never set on VBSO — and nothing
+  //     routes VY through it. Rendering that number would show a rate no VY staker
+  //     is paid.
+  //
+  // So the live VYO quote is carried as a FIXED bps: it renders flat across every
+  // rung instead of stepping down with them. The flat bar is the point — it is what
+  // "VY does not ratchet" looks like next to four assets that do.
+  const vyoConfig = getContractConfig('ValinityYieldOfficer');
+  const tier3Sec = termRaw[0].status === 'success'
+    ? BigInt(termRaw[0].result as unknown as number)
+    : 0n;
+  const vyMultRaw = await client.multicall({
+    contracts: [
+      { ...vyoConfig, functionName: 'assetMultBps', args: [vyTokenConfig.address] },
+      { ...vbsoConfig, functionName: 'assetMultBps', args: [vyTokenConfig.address] },
+      { ...vyoConfig, functionName: 'quoteYieldBps', args: [3, true, vyTokenConfig.address, tier3Sec] },
+    ],
+    allowFailure: true,
+  });
+  const bpsOf = (i: number) =>
+    vyMultRaw[i].status === 'success' ? Number(vyMultRaw[i].result as unknown as number) : 0;
+  const vyMultBps = bpsOf(0) || bpsOf(1) || 0;
+  const vyLiveQuoteBps = bpsOf(2);
+
   const deskRows = tableAssets.map((t, i) => {
     const base = 2 + i * 4;
     const bookRes = deskRaw[base];
@@ -820,13 +861,34 @@ const fetchData = async () => {
   // DEFAULT_ASSET_MULT_BPS (5556) — never to zero. Rendering 0 would invent a 0%
   // ceiling for an asset that actually earns 55.56% of the anchor.
   const DEFAULT_ASSET_MULT_BPS = 5_556;
-  const assetMults = tableAssets
-    .map((t, i) => {
+  const assetMults: AssetMult[] = tableAssets
+    .map((t, i): AssetMult => {
       const r = deskRaw[2 + i * 4 + 3];
       const raw = r.status === 'success' ? Number(r.result as unknown as number) : 0;
       return { symbol: t.sym, multBps: raw === 0 ? DEFAULT_ASSET_MULT_BPS : raw };
     })
+    // VY carries `fixedBps`, so the ladder prints the VYO's live quote in every rung
+    // rather than era-scaling it. It sorts to the bottom on its own merit anyway:
+    // 3056 is the lowest multiplier in the table.
+    .concat(vyLiveQuoteBps > 0
+      ? [{ symbol: 'VY', multBps: vyMultBps || DEFAULT_ASSET_MULT_BPS, fixedBps: vyLiveQuoteBps }]
+      : [])
     .sort((a, b) => b.multBps - a.multBps);
+
+  // What the era model WOULD pay VY if the VYO honoured it, against what the VYO
+  // actually quotes. They agree today by coincidence of the current anchor
+  // (1776 × 3056 = 542, the VYO's own number), and they part company the moment the
+  // era steps. Surfaced the day it happens, because that is the day VY starts
+  // paying above the sheet's own ceiling.
+  if (vyMultBps > 0 && vyLiveQuoteBps > 0 && sheet) {
+    const eraWould = Math.floor((Number(sheet.eraMaxBps) * vyMultBps) / 10_000);
+    if (Math.abs(eraWould - vyLiveQuoteBps) > 1) {
+      vbsoErrors.push(
+        `VY pays ${(vyLiveQuoteBps / 100).toFixed(2)}% (VYO) where the era model caps it at `
+        + `${(eraWould / 100).toFixed(2)}% — the VYO does not read the era ratchet.`
+      );
+    }
+  }
 
   const projCurve = (() => {
     if (!projection || projection.multipleX <= 0n) return null;
@@ -840,9 +902,16 @@ const fetchData = async () => {
       const f = days === null ? 1 : 1 - Math.exp(-days / windowDays);
       return { label, deployedPct: f * 100, priceUsd: at(f) };
     };
+    // "now": the slice the drip has already released, put against today's pools.
+    // VBSO's ammo is Σ books.held × assetUsdPrice — the same marks as the desk rows —
+    // so ready ÷ ammo is the deployed fraction on the curve's own basis.
+    const ammo = Number(projection.ammoUsd) / 1e18;
+    const readyUsd = deskRows.reduce((n, r) => n + r.readyUsd, 0);
+    const fNow = ammo > 0 ? Math.min(readyUsd / ammo, 1) : 0;
     return {
       livePriceUsd: live,
       rows: [
+        { label: 'now', deployedPct: fNow * 100, priceUsd: at(fNow) },
         point('7 days', 7),
         point('30 days', 30),
         point(`${windowDays.toFixed(0)} days · one window`, windowDays),
@@ -899,6 +968,7 @@ const fetchData = async () => {
   return {
     circulatingSupply: new Amount(VY, totalUncollateralized),
     vyTotalSupply: new Amount(VY, vyTotalSupply),
+    vyMaxSupply: new Amount(VY, vyMaxSupply),
     balanceSheet: sheet && {
       floors: {
         projected: projection ? Number(projection.vyPriceUsd) / 1e18 : null,
@@ -1079,6 +1149,7 @@ export default function Mainnet() {
   const [elapsed, setElapsed] = useState(0);
   const [volume, setVolume] = useState<VolumeData | null>(null);
   const [volProgress, setVolProgress] = useState<FlowProgress | null>(null);
+  const [holders, setHolders] = useState<number | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -1113,6 +1184,22 @@ export default function Mainnet() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [!!volPrices]);
 
+  // The holder count replays every VY Transfer since genesis, so like volume it
+  // runs on its own slow cadence. A failed refresh keeps the last count; before
+  // the first success the row reads "…".
+  useEffect(() => {
+    let active = true;
+    const vyToken = (networks.mainnet.addresses as Record<string, Address>)['ValinityToken'];
+    const load = () => {
+      countHolders(client, vyToken)
+        .then((n) => { if (active) setHolders(n); })
+        .catch(() => {});
+    };
+    load();
+    const t = setInterval(load, 300_000);
+    return () => { active = false; clearInterval(t); };
+  }, []);
+
   // The first paint needs a few hundred RPC round trips and takes ~15s. A bare
   // "Loading..." for that long is indistinguishable from a hung page, so show the
   // clock — and after 40s say plainly that something is wrong, rather than
@@ -1123,40 +1210,53 @@ export default function Mainnet() {
     return () => clearInterval(t);
   }, [data]);
 
+  // The price section is bundled JSON, not RPC, so it paints on the first frame and is
+  // rendered OUTSIDE the load/error gate below — a chart of closed history has no reason
+  // to wait on the ~15s of round trips the balance sheet needs, or to disappear when the
+  // RPC fails.
   // A refresh failure is only fatal before the first successful load. Once the
   // sheet is on screen, a provider outage downgrades it to stale-with-a-banner
   // rather than blanking numbers the user was reading.
-  if (error && !data) return <p style={{ textAlign: 'center', color: 'red' }}>Error: {error}</p>;
-  if (!data) return (
-    <p style={{ textAlign: 'center', opacity: 0.8 }}>
-      Loading on-chain data… {elapsed}s
-      {elapsed > 40 && (
-        <><br /><span style={{ color: '#e67e22' }}>
-          This is taking longer than it should (normal is ~15s). The RPC may be
-          throttling, or this tab may be pointed at a dev server that is no longer
-          running — reload it.
-        </span></>
-      )}
-    </p>
-  );
+  const body = error && !data
+    ? <p style={{ textAlign: 'center', color: 'red' }}>Error: {error}</p>
+    : !data
+      ? (
+        <p style={{ textAlign: 'center', opacity: 0.8 }}>
+          Loading on-chain data… {elapsed}s
+          {elapsed > 40 && (
+            <><br /><span style={{ color: '#e67e22' }}>
+              This is taking longer than it should (normal is ~15s). The RPC may be
+              throttling, or this tab may be pointed at a dev server that is no longer
+              running — reload it.
+            </span></>
+          )}
+        </p>
+      )
+      : (
+        <>
+          {error && (
+            <div className="box box--warning">
+              <div className="error-item">
+                ⚠ Refresh failed — showing the last good load
+                {loadedAt && ` from ${new Date(loadedAt).toLocaleTimeString()}`}. The RPC
+                provider is not responding; retrying every 30s.
+              </div>
+              <div className="error-item" style={{ opacity: 0.7 }}>{error}</div>
+            </div>
+          )}
+          <Content data={data} volume={volume} volProgress={volProgress} holders={holders} />
+        </>
+      );
+
   return (
     <>
-      {error && (
-        <div className="box box--warning">
-          <div className="error-item">
-            ⚠ Refresh failed — showing the last good load
-            {loadedAt && ` from ${new Date(loadedAt).toLocaleTimeString()}`}. The RPC
-            provider is not responding; retrying every 30s.
-          </div>
-          <div className="error-item" style={{ opacity: 0.7 }}>{error}</div>
-        </div>
-      )}
-      <Content data={data} volume={volume} volProgress={volProgress} />
+      <LifetimePrice />
+      {body}
     </>
   );
 }
 
-function Content({ data, volume, volProgress }: { data: MonitorData; volume: VolumeData | null; volProgress: FlowProgress | null }) {
+function Content({ data, volume, volProgress, holders }: { data: MonitorData; volume: VolumeData | null; volProgress: FlowProgress | null; holders: number | null }) {
 
   return (
     <div className="monitor">
@@ -1177,18 +1277,20 @@ function Content({ data, volume, volProgress }: { data: MonitorData; volume: Vol
         </div>
       )}
       <div>
-        <h2>Balances <a href="https://etherscan.io/address/0xe58E29c947013B4CBCdb67f90d659c3894BE2974" target="_blank" rel="noreferrer" style={{ fontWeight: 'normal' }}>VYT ↗ Etherscan</a></h2>
+        <h2>Token Overview <a href="https://etherscan.io/token/0x597b29520098d6aaca3B2e0D1a380315c9240454" target="_blank" rel="noreferrer" style={{ fontWeight: 'normal' }}>VY ↗ Etherscan</a></h2>
         <div className="box vy-split">
           <div className="vy-split__left">
             <BalanceTable
               data={data.balanceMap}
               headerRows={[
-                { label: 'VY Total Supply', value: data.vyTotalSupply },
+                { label: 'VY Max Supply', value: data.vyMaxSupply },
+                { label: 'VY Minted', value: data.vyTotalSupply },
               ]}
               footerRows={[
                 { label: 'VY in LPs', value: data.lps['Total VY in LPs'] },
                 { label: 'Circulating Supply', value: data.circulatingSupply },
                 { label: 'VY in User Wallets', value: data.lps['VY in User Wallets'] },
+                { label: 'Holders', value: holders },
               ]}
             />
           </div>
@@ -1232,6 +1334,7 @@ function Content({ data, volume, volProgress }: { data: MonitorData; volume: Vol
               liveEraMaxBps={data.balanceSheet.eraMaxBps}
               assetMults={data.balanceSheet.assetMults}
               tier3TermDays={data.balanceSheet.tier3TermDays}
+              vyPriceUsd={data.balanceSheet.floors.market}
             />
 
             </>)}
@@ -1414,10 +1517,16 @@ function renderValues(
   );
 }
 
+/** A summary row is a VY amount, or a plain count (Holders); null means still loading. */
+type SummaryValue = Amount<bigint> | number | null;
+
+const summaryCell = (v: SummaryValue) =>
+  v instanceof Amount ? <Value includeSybmol={false}>{v}</Value> : v === null ? '…' : v.toLocaleString('en-US');
+
 const BalanceTable = ({ data, headerRows, footerRows }: {
   data: { [key: string]: Amount<bigint>[] }
-  headerRows?: { label: string; value: Amount<bigint> }[]
-  footerRows?: { label: string; value: Amount<bigint> }[]
+  headerRows?: { label: string; value: SummaryValue }[]
+  footerRows?: { label: string; value: SummaryValue }[]
 }) => {
   const totals: Amount<bigint>[] = [];
 
@@ -1443,7 +1552,7 @@ const BalanceTable = ({ data, headerRows, footerRows }: {
         {headerRows && headerRows.map(row => (
           <tr key={row.label}>
             <td>{row.label}</td>
-            <td><Value includeSybmol={false}>{row.value}</Value></td>
+            <td>{summaryCell(row.value)}</td>
           </tr>
         ))}
         {Object.entries(data).map(([holder, amounts]) => (
@@ -1464,7 +1573,7 @@ const BalanceTable = ({ data, headerRows, footerRows }: {
           {footerRows.map(row => (
             <tr key={row.label}>
               <td>{row.label}</td>
-              <td><Value includeSybmol={false}>{row.value}</Value></td>
+              <td>{summaryCell(row.value)}</td>
             </tr>
           ))}
         </tfoot>

@@ -1,0 +1,53 @@
+name: Deploy to GitHub Pages
+# Builds the monitor and publishes it to https://valinity-labs.github.io/vy-monitor/ on every push
+# to gh-pages (or by hand from the Actions tab).
+#
+# TradingView Advanced Charts is licensed to Valinity and must NEVER be committed to this public
+# repository. The build downloads it from app.valinity.io — the web app already serves the exact
+# same files — and verifies every file against scripts/charting_library.sha256, so it only ever
+# reaches the published site. No credentials or secrets are involved.
+
+on:
+  push:
+    branches: [gh-pages]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time; a newer push waits for the one in flight.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      # Fails the build if any file is missing or differs from the committed SHA-256 list.
+      - name: Download the TradingView library (verified)
+        run: node scripts/fetch-charting-library.mjs
+
+      - run: npm ci
+
+      - run: npm run build
+
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: docs
+          retention-days: 1
+
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -153,24 +153,34 @@ th {
    2 (orange, floor-hard), stepped per mode and checked against each mode's
    actual surface: dark #3987e5/#d95926 on #181818, light #2a78d6/#eb6834 on
    #eeeeee — all checks PASS. Both always carry a text label beside the swatch,
-   so identity is never colour-alone. */
-.monitor {
+   so identity is never colour-alone.
+   The price section renders above the balance sheet's loading gate, outside .monitor, so it
+   takes the same tokens directly. */
+.monitor,
+.vy-price {
   --vy-series-1: #3987e5;
   --vy-series-2: #d95926;
   --vy-ink-1: rgba(255, 255, 255, 0.92);
   --vy-ink-2: rgba(255, 255, 255, 0.62);
   --vy-ink-3: rgba(255, 255, 255, 0.38);
   --vy-rule: rgba(255, 255, 255, 0.12);
+  /* Reserve-asset lines on the price chart — mirror BENCHMARKS in src/utils/benchmarks.ts. */
+  --vy-bench-btc: #F7931A;
+  --vy-bench-eth: #A3A3A3;
+  --vy-bench-xau: #FFD60A;
 }
 
 @media (prefers-color-scheme: light) {
-  .monitor {
+  .monitor,
+  .vy-price {
     --vy-series-1: #2a78d6;
     --vy-series-2: #eb6834;
     --vy-ink-1: rgba(0, 0, 0, 0.88);
     --vy-ink-2: rgba(0, 0, 0, 0.6);
     --vy-ink-3: rgba(0, 0, 0, 0.42);
     --vy-rule: rgba(0, 0, 0, 0.14);
+    --vy-bench-eth: #737373;
+    --vy-bench-xau: #D4A106;
   }
 }
 
@@ -601,9 +611,9 @@ th {
   gap: 0.35rem;
 }
 
-/* Identity is the SYMBOL, not the colour: one hue serves every bar because all
-   four encode the same measure. Four categorical hues would put slot 4 (yellow)
-   against slot 2 (orange), which fails the all-pairs separation floors. */
+/* Identity is the SYMBOL, not the colour: one hue serves every bar because they
+   all encode the same measure. Categorical hues would put slot 4 (yellow) against
+   slot 2 (orange), which fails the all-pairs separation floors. */
 .vy-arate__sym {
   font-size: 0.6rem;
   letter-spacing: 0.04em;
@@ -625,6 +635,31 @@ th {
   opacity: 0.55;
 }
 
+/* A rate that does not follow the ratchet is drawn hollow: same length everywhere,
+   visibly not part of the staircase the other bars form. */
+.vy-arate--fixed .vy-arate__fill {
+  background: repeating-linear-gradient(
+    90deg, var(--vy-series-1) 0 3px, transparent 3px 6px
+  );
+}
+
+/* ── Panel footer: the price behind the market cap, and the VY caveat ────── */
+.vy-ladder__foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-top: 0.55rem;
+  padding-top: 0.45rem;
+  border-top: 1px solid var(--vy-rule);
+  font-size: 0.68rem;
+  color: var(--vy-ink-3);
+}
+
+.vy-ladder__foot strong { color: var(--vy-ink-1); font-variant-numeric: tabular-nums; }
+.vy-ladder__foot-sep { margin: 0 0.4rem; opacity: 0.5; }
+
 /* The live era is the one being paid right now — its bars come forward. */
 .vy-rung--now .vy-arate__fill { opacity: 1; }
 .vy-rung--done .vy-arate__fill { opacity: 0.3; }
@@ -637,3 +672,312 @@ th {
 }
 
 .vy-rung--now .vy-arate__pct { color: var(--vy-ink-1); }
+
+/* ─────────────────────────────────────────────────────────────
+   Lifetime price — chart + tape
+   ───────────────────────────────────────────────────────────── */
+
+/* The price section is the page's lead element and the only one that benefits from
+   width, so it breaks out of the 45rem reading column that suits the tables below. */
+.vy-price {
+  max-width: 68rem;
+  margin: 0 auto 1.5rem;
+}
+
+.vy-price__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.vy-price__title {
+  font-size: 1.1rem;
+  font-weight: bold;
+}
+
+.vy-price__sub {
+  font-size: 0.7rem;
+  color: var(--vy-ink-2);
+}
+
+.vy-price__controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+}
+
+/* Time-range picker: one segmented group, the active range filled. */
+.vy-price__ranges {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--vy-rule);
+  border-radius: 999px;
+}
+
+.vy-price__range {
+  font: inherit;
+  font-size: 0.64rem;
+  letter-spacing: 0.04em;
+  color: var(--vy-ink-2);
+  background: transparent;
+  border: 0;
+  border-radius: 999px;
+  padding: 0.22rem 0.6rem;
+  cursor: pointer;
+}
+
+.vy-price__range:hover { color: var(--vy-ink-1); }
+
+.vy-price__range[aria-pressed="true"] {
+  color: #ffffff;
+  background: var(--vy-series-1);
+}
+
+.vy-price__range:focus-visible {
+  outline: 2px solid var(--vy-series-1);
+  outline-offset: 1px;
+}
+
+/* The section's one control: switches chart, stats and tape between the current pool and
+   every contract since genesis. */
+.vy-price__toggle {
+  font: inherit;
+  font-size: 0.64rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--vy-series-1);
+  background: transparent;
+  border: 1px solid var(--vy-series-1);
+  border-radius: 999px;
+  padding: 0.3rem 0.85rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.vy-price__toggle:hover {
+  color: #ffffff;
+  background: var(--vy-series-1);
+}
+
+.vy-price__toggle:focus-visible {
+  outline: 2px solid var(--vy-series-1);
+  outline-offset: 2px;
+}
+
+.vy-price__stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+  margin: 0.6rem 0 0.9rem;
+}
+
+.vy-price__stat-label {
+  font-size: 0.6rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--vy-ink-3);
+}
+
+.vy-price__stat-value {
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--vy-ink-1);
+}
+
+/* Key for the reserve-asset lines: each one's return since the pool's first trade, drawn in
+   its line's colour. */
+.vy-price__bench {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 1.1rem;
+  font-size: 0.7rem;
+  margin: -0.3rem 0 0.7rem;
+  color: var(--vy-ink-2);
+}
+
+.vy-price__bench-lead { color: var(--vy-ink-3); }
+
+.vy-price__bench-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.vy-price__bench-item strong {
+  color: var(--vy-ink-1);
+  font-weight: 600;
+}
+
+.vy-price__bench-swatch {
+  width: 0.9rem;
+  height: 2px;
+  border-radius: 1px;
+}
+
+.vy-price__bench-swatch--btc { background: var(--vy-bench-btc); }
+.vy-price__bench-swatch--eth { background: var(--vy-bench-eth); }
+.vy-price__bench-swatch--xau { background: var(--vy-bench-xau); }
+
+/* BTC / ETH / Gold are switches: outlined when off, ringed in their line colour when on. */
+.vy-price__bench-toggle {
+  font: inherit;
+  color: var(--vy-ink-2);
+  background: transparent;
+  border: 1px solid var(--vy-rule);
+  border-radius: 999px;
+  padding: 0.18rem 0.65rem;
+  cursor: pointer;
+}
+
+.vy-price__bench-toggle:hover {
+  color: var(--vy-ink-1);
+  border-color: var(--vy-ink-3);
+}
+
+.vy-price__bench-toggle[aria-pressed="false"] strong { color: var(--vy-ink-2); }
+.vy-price__bench-toggle[aria-pressed="false"] .vy-price__bench-swatch { opacity: 0.35; }
+
+.vy-price__bench-toggle--btc[aria-pressed="true"] { border-color: var(--vy-bench-btc); }
+.vy-price__bench-toggle--eth[aria-pressed="true"] { border-color: var(--vy-bench-eth); }
+.vy-price__bench-toggle--xau[aria-pressed="true"] { border-color: var(--vy-bench-xau); }
+
+.vy-price__bench-toggle:focus-visible {
+  outline: 2px solid var(--vy-series-1);
+  outline-offset: 2px;
+}
+
+.vy-price__bench-hint {
+  font-size: 0.64rem;
+  color: var(--vy-ink-3);
+}
+
+.vy-chart {
+  width: 100%;
+  min-height: 320px;
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+
+/* ── Tape ── */
+
+.vy-tape { margin-top: 1.25rem; }
+
+.vy-tape__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--vy-ink-2);
+  border-bottom: 1px solid var(--vy-rule);
+  padding-bottom: 0.35rem;
+  margin-bottom: 0.25rem;
+}
+
+.vy-tape__count {
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--vy-ink-3);
+}
+
+/* The tape is long by design; it scrolls inside itself so the page does not. */
+.vy-tape__scroll {
+  max-height: 26rem;
+  overflow-y: auto;
+  overflow-x: auto;
+}
+
+.vy-tape__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.72rem;
+}
+
+.vy-tape__table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #181818;
+  font-size: 0.6rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--vy-ink-3);
+  font-weight: normal;
+  text-align: left;
+  padding: 0.3rem 0.5rem 0.3rem 0;
+  border-bottom: 1px solid var(--vy-rule);
+}
+
+.vy-tape__table td {
+  padding: 0.28rem 0.5rem 0.28rem 0;
+  border-bottom: 1px solid var(--vy-rule);
+  white-space: nowrap;
+}
+
+.vy-tape__table tr:hover td { background: rgba(255, 255, 255, 0.03); }
+
+.vy-tape__num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.vy-tape__time { color: var(--vy-ink-2); }
+.vy-tape__price { color: var(--vy-ink-1); }
+
+.vy-tape__side {
+  font-size: 0.6rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* Buy/sell are the one place colour carries meaning here, so they get the two
+   series hues rather than a red/green pair that reads as error/success. */
+.vy-tape__side--buy { color: #3fb950; }
+.vy-tape__side--sell { color: var(--vy-series-2); }
+
+.vy-tape__addr,
+.vy-tape__tx {
+  color: var(--vy-series-1);
+  text-decoration: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.vy-tape__addr:hover,
+.vy-tape__tx:hover { text-decoration: underline; }
+
+.vy-tape__tx { font-size: 0.85rem; }
+
+.vy-tape__note {
+  font-size: 0.66rem;
+  line-height: 1.5;
+  color: var(--vy-ink-3);
+  margin-top: 0.5rem;
+}
+
+.vy-tape__empty {
+  font-size: 0.72rem;
+  color: var(--vy-ink-3);
+  padding: 1rem 0;
+}
+
+@media (prefers-color-scheme: light) {
+  .vy-tape__table th { background: #ffffff; }
+  .vy-tape__table tr:hover td { background: rgba(0, 0, 0, 0.03); }
+  .vy-tape__side--buy { color: #1a7f37; }
+}
+
+/* Per-row token symbol in the tape's amount column — the eras use different tokens. */
+.vy-tape__sym {
+  font-size: 0.58rem;
+  color: var(--vy-ink-3);
+  letter-spacing: 0.03em;
+}

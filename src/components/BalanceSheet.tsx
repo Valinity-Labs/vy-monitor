@@ -243,13 +243,20 @@ export function HoldingsTable({ table }: { table: AssetTable }) {
  * they are transcribed here — and the rung for the CURRENT era is checked against
  * the live `eraMaxBps`. A mismatch is shown rather than silently printed wrong.
  */
-export type AssetMult = { symbol: string; multBps: number };
+export type AssetMult = {
+  symbol: string;
+  multBps: number;
+  /** Set when the asset is NOT priced by the era model — VY is quoted by the VYO,
+   *  which never reads `era`. Rendered flat in every rung instead of stepping down,
+   *  because a rate that does not ratchet must not be drawn as if it did. */
+  fixedBps?: number;
+};
 
 export function EraLadder({
-  era, mcapUsd, anchorBps, liveEraMaxBps, assetMults, tier3TermDays,
+  era, mcapUsd, anchorBps, liveEraMaxBps, assetMults, tier3TermDays, vyPriceUsd,
 }: {
   era: number; mcapUsd: number; anchorBps: number; liveEraMaxBps: number;
-  assetMults: AssetMult[]; tier3TermDays: number;
+  assetMults: AssetMult[]; tier3TermDays: number; vyPriceUsd: number;
 }) {
   const rungs = [
     { era: 0, label: 'Era 0', threshold: 0, multBps: 10_000 },
@@ -265,6 +272,7 @@ export function EraLadder({
     relPct: r.multBps / 100,
   }));
 
+  const hasFixed = assetMults.some((a) => a.fixedBps !== undefined);
   const next = rungs.find((r) => r.era === era + 1);
   const current = rungs.find((r) => r.era === era);
   // 1 bp of tolerance: the contract floors the multiply, we do not.
@@ -302,14 +310,21 @@ export function EraLadder({
                 {assetMults.map((a) => {
                   // Math.floor twice: the contract truncates to uint16 at each step.
                   const capBps = Math.floor((anchorBps * r.multBps) / 10_000);
-                  const bps = Math.floor((capBps * a.multBps) / 10_000);
+                  // `fixedBps` opts out of the ratchet entirely — see AssetMult.
+                  const bps = a.fixedBps ?? Math.floor((capBps * a.multBps) / 10_000);
                   // Bars are scaled against ONE fixed reference — the anchor at era 0,
                   // which is USDC's ceiling — so a bar's length means the same thing in
                   // every rung and the staircase is visible across the whole ladder.
                   // Scaling per-rung would make every rung look identical.
                   const w = Math.max(2, (bps / anchorBps) * 100);
                   return (
-                    <div className="vy-arate" key={a.symbol}>
+                    <div
+                      className={`vy-arate${a.fixedBps ? ' vy-arate--fixed' : ''}`}
+                      key={a.symbol}
+                      title={a.fixedBps
+                        ? `${a.symbol} is quoted by the VYO, which does not read the era — this rate does not step down.`
+                        : undefined}
+                    >
                       <span className="vy-arate__sym">{a.symbol}</span>
                       <span className="vy-arate__track">
                         <span className="vy-arate__fill" style={{ width: `${w}%` }} />
@@ -349,6 +364,23 @@ export function EraLadder({
           )}
         </div>
       </div>
+
+      {/* The price the market cap above is struck at, and the one caveat the bars
+          cannot carry themselves. Both sit at the bottom because both qualify every
+          number above them. */}
+      <div className="vy-ladder__foot">
+        <span>
+          VY <strong>${vyPriceUsd.toFixed(4)}</strong>
+          <span className="vy-ladder__foot-sep">·</span>
+          market cap = this price × total supply
+        </span>
+        {hasFixed && (
+          <span>
+            VY's own rate is set by the <strong>VYO</strong>, not by the era — it is
+            shown flat because it does not step down with the rungs.
+          </span>
+        )}
+      </div>
     </div>
   );
 }
@@ -380,17 +412,7 @@ export function TradingVolume({
   if (!volume) {
     return (
       <div className="vy-vol">
-        <div className="vy-vol__title">
-        Trading volume{' '}
-        <a
-          href="https://etherscan.io/token/0x597b29520098d6aaca3B2e0D1a380315c9240454"
-          target="_blank"
-          rel="noreferrer"
-          style={{ fontWeight: 'normal', textTransform: 'none', letterSpacing: 0 }}
-        >
-          VY ↗ Etherscan
-        </a>
-      </div>
+        <div className="vy-vol__title">Trading volume</div>
         <div className="vy-vol__loading">
           {progress && progress.total > 0
             ? `indexing VY transactions… ${progress.done.toLocaleString('en-US')} / ${progress.total.toLocaleString('en-US')}`
@@ -402,17 +424,7 @@ export function TradingVolume({
   const { rows, totals } = volume;
   return (
     <div className="vy-vol">
-      <div className="vy-vol__title">
-        Trading volume{' '}
-        <a
-          href="https://etherscan.io/token/0x597b29520098d6aaca3B2e0D1a380315c9240454"
-          target="_blank"
-          rel="noreferrer"
-          style={{ fontWeight: 'normal', textTransform: 'none', letterSpacing: 0 }}
-        >
-          VY ↗ Etherscan
-        </a>
-      </div>
+      <div className="vy-vol__title">Trading volume</div>
       <table className="vy-vol__table">
         <thead>
           <tr>

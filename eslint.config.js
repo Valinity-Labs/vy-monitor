@@ -6,7 +6,9 @@ import tseslint from 'typescript-eslint'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist']),
+  // 'docs' is build output; 'public/charting_library' is a vendored third-party bundle —
+  // neither is ours to lint, and the library's .d.ts files otherwise dominate the report.
+  globalIgnores(['dist', 'docs', 'public/charting_library']),
   {
     files: ['**/*.{ts,tsx}'],
     extends: [

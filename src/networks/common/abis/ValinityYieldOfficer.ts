@@ -32,5 +32,24 @@ export default [
     "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
     "stateMutability": "view",
     "type": "function"
+  },
+  {
+    "inputs": [{ "internalType": "address", "name": "asset", "type": "address" }],
+    "name": "assetMultBps",
+    "outputs": [{ "internalType": "uint16", "name": "", "type": "uint16" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "uint8", "name": "tierId", "type": "uint8" },
+      { "internalType": "bool", "name": "isPremiumUser", "type": "bool" },
+      { "internalType": "address", "name": "asset", "type": "address" },
+      { "internalType": "uint256", "name": "lockSeconds", "type": "uint256" }
+    ],
+    "name": "quoteYieldBps",
+    "outputs": [{ "internalType": "uint16", "name": "", "type": "uint16" }],
+    "stateMutability": "view",
+    "type": "function"
   }
 ] as const;
