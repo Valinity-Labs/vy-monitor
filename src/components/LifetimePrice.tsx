@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLiveTail } from '../utils/liveTail';
+import { LOAD_LIMIT_MS } from '../utils/loadLimit';
 import { PriceChart, type ChartOverlay } from './PriceChart';
 import { TradeTape } from './TradeTape';
 import {
@@ -19,19 +20,11 @@ import { BENCHMARKS, BENCHMARK_SNAPSHOT, mergeSamples, rebased } from '../utils/
  * what backs it.
  *
  * THE FIRST FRAME IS THE PRESENT. History ships in the bundle, but the bundle is only as current
- * as its last build, so the section waits briefly for the live catch-up (useLiveTail) before
- * drawing. It sits ABOVE the RPC gate in Mainnet because that wait is a couple of round trips,
- * not the balance sheet's fifteen seconds.
+ * as its last build, so the section waits for the live catch-up (useLiveTail) before drawing.
+ * The page's loading screen covers that wait and lifts once `onReady` reports the chart drawn.
  */
 
 const LIVE_ERA: EraId = 'vy-current';
-
-/**
- * How long to wait for the live catch-up before drawing from the snapshot instead. The catch-up
- * normally lands well inside this; when it does not, the snapshot is shown and the present is
- * streamed into that same chart when it arrives — never a redraw.
- */
-const FIRST_PAINT_WAIT_MS = 2500;
 
 type View = 'live' | 'genesis';
 
@@ -75,8 +68,6 @@ const fmtDate = (ts: number) =>
 const fmtPrice = (n: number) =>
   '$' + n.toLocaleString('en-US', { minimumFractionDigits: n < 1 ? 4 : 2, maximumFractionDigits: n < 1 ? 4 : 2 });
 
-const fmtUsd = (n: number) => '$' + n.toLocaleString('en-US', { maximumFractionDigits: 0 });
-
 const fmtPct = (ratio: number) => {
   if (!Number.isFinite(ratio)) return '—';
   const p = Math.abs(ratio * 100);
@@ -101,7 +92,7 @@ function Stat({ label, value }: { label: string; value: string }) {
 const DEFAULT_RANGE: Record<View, RangeKey> = { live: '3m', genesis: 'all' };
 const openingRange = (v: View) => ({ key: DEFAULT_RANGE[v], from: rangeStart(DEFAULT_RANGE[v], Date.now()) });
 
-export function LifetimePrice() {
+export function LifetimePrice({ onReady }: { onReady?: () => void }) {
   const [view, setView] = useState<View>('live');
   // The start is fixed when the range is chosen, so "last 3 months" does not creep forward (and
   // rebuild the chart) on every re-render.
@@ -114,9 +105,10 @@ export function LifetimePrice() {
   const snapshot = useMemo(() => loadAllTrades(), []);
   const tail = useLiveTail();
 
+  // Past the load limit, draw from the snapshot; the live catch-up streams into that same chart.
   const [waited, setWaited] = useState(false);
   useEffect(() => {
-    const timer = setTimeout(() => setWaited(true), FIRST_PAINT_WAIT_MS);
+    const timer = setTimeout(() => setWaited(true), LOAD_LIMIT_MS);
     return () => clearTimeout(timer);
   }, []);
   const ready = tail.settled || waited;
@@ -168,7 +160,10 @@ export function LifetimePrice() {
     });
   }, [view, anchor, samples]);
 
-  if (!shown.length) {
+  const empty = !shown.length;
+  useEffect(() => { if (empty) onReady?.(); }, [empty, onReady]);
+
+  if (empty) {
     return (
       <div className="vy-price">
         <div className="box box--warning">
@@ -187,8 +182,6 @@ export function LifetimePrice() {
   const prices = shown.map((t: Trade) => t.price);
   const low = Math.min(...prices);
   const high = Math.max(...prices);
-  const volume = shown.reduce((n: number, t: Trade) => n + t.usd, 0);
-  const makers = new Set(shown.map((t: Trade) => t.address)).size;
 
   return (
     <div className="vy-price">
@@ -228,7 +221,7 @@ export function LifetimePrice() {
       </div>
 
       {!ready ? (
-        <div className="vy-price__loading" aria-busy="true">Loading the live pool…</div>
+        <div className="vy-price__loading" aria-busy="true">Loading the live pool from Ethereum…</div>
       ) : (
         <>
           <div className="vy-price__stats">
@@ -236,9 +229,6 @@ export function LifetimePrice() {
             <Stat label="Price" value={fmtPrice(last.price)} />
             <Stat label="All-time low" value={fmtPrice(low)} />
             <Stat label="All-time high" value={fmtPrice(high)} />
-            <Stat label="Volume" value={fmtUsd(volume)} />
-            <Stat label="Trades" value={shown.length.toLocaleString('en-US')} />
-            <Stat label="Wallets" value={makers.toLocaleString('en-US')} />
           </div>
 
           {overlays.length > 0 && (
@@ -263,16 +253,13 @@ export function LifetimePrice() {
                   </button>
                 );
               })}
-              <span className="vy-price__bench-hint">
-                Click BTC, ETH or Gold to show or hide it on the chart — or use the 👁 next to its name in the chart legend
-              </span>
             </div>
           )}
 
           <PriceChart
             trades={shown} seriesKey={view} symbol={cfg.symbol} exchange={cfg.exchange}
             resolution={resolution} overlays={overlays} visibleFrom={range.from ?? undefined}
-            overlayVisible={linesOn}
+            overlayVisible={linesOn} onReady={onReady}
             onOverlayToggle={(id, on) => setLinesOn((prev) => (!!prev[id] === on ? prev : { ...prev, [id]: on }))}
           />
 

@@ -149,8 +149,10 @@ const prefersLight = () =>
 
 export function PriceChart({
   trades, seriesKey, symbol, exchange, resolution = DEFAULT_RES, overlays = NO_OVERLAYS, visibleFrom,
-  overlayVisible = NO_VISIBLE, onOverlayToggle, height = 460,
+  overlayVisible = NO_VISIBLE, onOverlayToggle, onReady, height = 460,
 }: {
+  /** Called once the widget has drawn (or failed to), so the page can lift its loading screen. */
+  onReady?: () => void;
   trades: Trade[];
   /**
    * Identity of the series on screen. The widget is rebuilt only when this — or the symbol,
@@ -194,9 +196,11 @@ export function PriceChart({
   const studiesRef = useRef(new Map<string, TVStudyApi>());
   const visibleRef = useRef(overlayVisible);
   const toggleRef = useRef(onOverlayToggle);
+  const readyRef = useRef(onReady);
   useEffect(() => {
     visibleRef.current = overlayVisible;
     toggleRef.current = onOverlayToggle;
+    readyRef.current = onReady;
     for (const [id, study] of studiesRef.current) {
       try {
         const want = !!overlayVisible[id];
@@ -205,7 +209,7 @@ export function PriceChart({
         studiesRef.current.delete(id); // removed from the legend by the viewer
       }
     }
-  }, [overlayVisible, onOverlayToggle]);
+  }, [overlayVisible, onOverlayToggle, onReady]);
 
   // Rebuild on theme flip — the widget takes its theme at construction time.
   useEffect(() => {
@@ -321,8 +325,12 @@ export function PriceChart({
               }
             }
           };
+          // Ready means candles are on screen: the first data load, or a moment after the widget
+          // is up if this library build has no data-loaded event.
+          const ready = () => { if (!cancelled) readyRef.current?.(); };
+          setTimeout(ready, 1500);
           try {
-            widget?.activeChart().onDataLoaded?.().subscribe(null, snap, true);
+            widget?.activeChart().onDataLoaded?.().subscribe(null, () => { snap(); ready(); }, true);
           } catch {
             /* older library builds may not expose it — the direct call below still runs */
           }
@@ -354,7 +362,7 @@ export function PriceChart({
           });
         });
       })
-      .catch((e: Error) => { if (!cancelled) setError(e.message); });
+      .catch((e: Error) => { if (!cancelled) { setError(e.message); readyRef.current?.(); } });
 
     return () => {
       cancelled = true;

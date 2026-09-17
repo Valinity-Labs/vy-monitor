@@ -1,7 +1,7 @@
 import flatten from 'lodash/flatten';
 import omit from 'lodash/omit';
 import startCase from 'lodash/startCase';
-import { useEffect, useState, type JSX } from 'react';
+import { useCallback, useEffect, useState, type JSX } from 'react';
 import { createPublicClient, http, parseAbiItem, type Address } from 'viem';
 import { mainnet } from 'viem/chains';
 import { Value } from '../components/core';
@@ -15,6 +15,8 @@ import { indexTxFlow, bucketFlow, type FlowProgress } from '../utils/txFlow';
 import { scanFullHistory } from '../utils/logs';
 import { countHolders } from '../utils/holders';
 import { LifetimePrice } from '../components/LifetimePrice';
+import { LoadingScreen } from '../components/LoadingScreen';
+import { LOAD_LIMIT_MS } from '../utils/loadLimit';
 
 
 /**
@@ -1203,6 +1205,18 @@ export default function Mainnet() {
   const [volProgress, setVolProgress] = useState<FlowProgress | null>(null);
   const [holders, setHolders] = useState<number | null>(null);
 
+  // The whole page loads behind one loading screen and appears at once: it lifts when the price
+  // chart has drawn AND the balance sheet has answered (data or an error). Past LOAD_LIMIT_MS it
+  // lifts anyway and the page shows what it has, so a slow RPC never covers the page forever.
+  const [chartReady, setChartReady] = useState(false);
+  const onChartReady = useCallback(() => setChartReady(true), []);
+  const [overLimit, setOverLimit] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setOverLimit(true), Math.max(0, LOAD_LIMIT_MS - performance.now()));
+    return () => clearTimeout(t);
+  }, []);
+  const loaded = (chartReady && (!!data || !!error)) || overLimit;
+
   useEffect(() => {
     let active = true;
     const load = () => {
@@ -1302,7 +1316,8 @@ export default function Mainnet() {
 
   return (
     <>
-      <LifetimePrice />
+      <LoadingScreen done={loaded} />
+      <LifetimePrice onReady={onChartReady} />
       {body}
     </>
   );

@@ -853,9 +853,92 @@ th {
   outline-offset: 2px;
 }
 
-.vy-price__bench-hint {
-  font-size: 0.64rem;
-  color: var(--vy-ink-3);
+/* ── Loading screen: covers the whole page until the chart and the balance sheet are both in ── */
+.vy-loader {
+  --vy-loader-bg: #000;
+  --vy-loader-ink: rgba(255, 255, 255, 0.92);
+  --vy-loader-dim: rgba(255, 255, 255, 0.45);
+  --vy-loader-glow: #627eea;
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: var(--vy-loader-bg);
+  color: var(--vy-loader-ink);
+  transition: opacity 0.4s ease;
+}
+
+.vy-loader--done { opacity: 0; pointer-events: none; }
+
+.vy-loader__inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.25rem;
+  text-align: center;
+  max-width: 34rem;
+}
+
+.vy-loader__eth {
+  width: 3.2rem;
+  fill: var(--vy-loader-glow);
+  filter: drop-shadow(0 0 1.1rem rgba(98, 126, 234, 0.55));
+  animation: vy-loader-float 2.4s ease-in-out infinite;
+}
+
+.vy-loader__eth path:nth-child(odd) { opacity: 0.65; }
+
+.vy-loader__blocks { display: flex; gap: 0.4rem; }
+
+.vy-loader__blocks span {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 0.15rem;
+  background: var(--vy-loader-glow);
+  opacity: 0.15;
+  animation: vy-loader-block 1.4s ease-in-out infinite;
+}
+
+.vy-loader__title {
+  font-size: clamp(1rem, 4.2vw, 1.35rem);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 1.35;
+}
+
+.vy-loader__clock {
+  font-size: clamp(2.2rem, 10vw, 3rem);
+  font-weight: 300;
+  font-variant-numeric: tabular-nums;
+  color: var(--vy-loader-dim);
+}
+
+.vy-loader__slow { font-size: 0.78rem; color: #e67e22; }
+
+@keyframes vy-loader-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-0.45rem); }
+}
+
+@keyframes vy-loader-block {
+  0%, 100% { opacity: 0.15; transform: scale(0.85); }
+  40% { opacity: 1; transform: scale(1); }
+}
+
+@media (prefers-color-scheme: light) {
+  .vy-loader {
+    --vy-loader-bg: #fff;
+    --vy-loader-ink: rgba(0, 0, 0, 0.88);
+    --vy-loader-dim: rgba(0, 0, 0, 0.45);
+    --vy-loader-glow: #3c52c4;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vy-loader__eth, .vy-loader__blocks span { animation: none; opacity: 1; }
 }
 
 /* Held for the moment the page waits for the live pool, so the chart's first frame is the present. */
