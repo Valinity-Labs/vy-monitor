@@ -1,15 +1,16 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import ethMetal from '../assets/eth-metal.webp';
-import { GOLD_STOPS, VALINITY_FACETS } from '../utils/valinityMark';
+import vPoster from '../assets/v-poster.webp';
 
 /**
  * The full-screen cover the page opens behind. Everything mounts and loads underneath it, so when
  * it lifts the chart is already drawn and the balance sheet already filled — the page appears at
  * once instead of piece by piece.
  *
- * The centrepiece is the website's 3D Valinity V (Three.js, loaded in the background; a flat gold
- * V spins in its place until it is ready or if WebGL is unavailable) with the website's metallic
- * Ethereum orbiting it. The clock counts from navigation (performance.now()), so it includes the
+ * The centrepiece is the website's metallic Ethereum, floating, with the website's small 3D
+ * Valinity V (the same Three.js scene as valinity.io) spinning as it orbits it. Until the 3D scene
+ * is ready — or where WebGL is unavailable — the website's still render of the V orbits instead;
+ * nothing flat ever spins. The clock counts from navigation (performance.now()), so it includes the
  * time before this component mounted.
  */
 
@@ -17,7 +18,7 @@ const ORBIT_MS = 3600;
 const TILT = (-14 * Math.PI) / 180;
 const TILT_COS = Math.cos(TILT);
 const TILT_SIN = Math.sin(TILT);
-const facetPath = (polygon: [number, number][]) => 'M' + polygon.map(([x, y]) => `${x} ${y}`).join('L') + 'Z';
+const FLOAT_MS = 4200;
 
 export function LoadingScreen({ done = false }: { done?: boolean }) {
   const [seconds, setSeconds] = useState(() => performance.now() / 1000);
@@ -25,8 +26,8 @@ export function LoadingScreen({ done = false }: { done?: boolean }) {
   const [webgl, setWebgl] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const ethRef = useRef<HTMLImageElement>(null);
+  const orbiterRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
-  const gradientId = useId();
 
   useEffect(() => {
     if (done) return;
@@ -49,7 +50,7 @@ export function LoadingScreen({ done = false }: { done?: boolean }) {
     return () => clearTimeout(t);
   }, [done]);
 
-  // One animation loop drives both the V and the Ethereum orbit.
+  // One animation loop drives the floating Ethereum, the V's spin and its orbit.
   useEffect(() => {
     if (gone) return;
     const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -59,20 +60,23 @@ export function LoadingScreen({ done = false }: { done?: boolean }) {
 
     const orbit = (ms: number) => {
       const eth = ethRef.current;
+      const v = orbiterRef.current;
       const size = stageRef.current?.clientWidth ?? 0;
-      if (!eth || !size) return;
-      // A tilted ellipse around the V: lower half passes in front, upper half behind.
-      const theta = still ? 0.35 * Math.PI : (ms / ORBIT_MS) * Math.PI * 2;
+      if (!eth || !v || !size) return;
+      // Ethereum drifts slowly up and down in the middle.
+      const float = still ? 0 : Math.sin((ms / FLOAT_MS) * Math.PI * 2) * size * 0.035;
+      eth.style.transform = `translate(-50%, -50%) translateY(${float}px)`;
+      // The V rides a tilted ellipse: the lower half passes in front of Ethereum, the upper behind.
+      const theta = still ? 0.3 * Math.PI : (ms / ORBIT_MS) * Math.PI * 2;
       const front = Math.sin(theta);
-      const ex = Math.cos(theta) * size * 0.46;
-      const ey = front * size * 0.11;
+      const ex = Math.cos(theta) * size * 0.45;
+      const ey = front * size * 0.12;
       const x = ex * TILT_COS - ey * TILT_SIN;
-      const y = ex * TILT_SIN + ey * TILT_COS;
-      const scale = 0.72 + 0.28 * ((front + 1) / 2);
-      const tilt = still ? 0 : Math.sin(ms / 900) * 28;
-      eth.style.transform = `translate(-50%, -50%) translate(${x}px, ${y}px) scale(${scale}) rotateY(${tilt}deg)`;
-      eth.style.zIndex = front > 0 ? '3' : '1';
-      eth.style.filter = `brightness(${0.7 + 0.3 * ((front + 1) / 2)}) drop-shadow(0 0 0.8rem rgba(231, 204, 134, ${0.1 + 0.25 * ((front + 1) / 2)}))`;
+      const y = ex * TILT_SIN + ey * TILT_COS + float * 0.4;
+      const near = (front + 1) / 2;
+      v.style.transform = `translate(-50%, -50%) translate(${x}px, ${y}px) scale(${0.7 + 0.3 * near})`;
+      v.style.zIndex = front > 0 ? '3' : '1';
+      v.style.filter = `brightness(${0.72 + 0.28 * near}) drop-shadow(0 0 0.7rem rgba(214, 170, 90, ${0.15 + 0.3 * near}))`;
     };
 
     const tick = (now: number) => {
@@ -90,7 +94,7 @@ export function LoadingScreen({ done = false }: { done?: boolean }) {
         scene.render(performance.now());
         setWebgl(true);
       })
-      .catch(() => { /* the flat gold V keeps spinning */ });
+      .catch(() => { /* the website's still V keeps orbiting */ });
 
     return () => {
       stopped = true;
@@ -105,18 +109,11 @@ export function LoadingScreen({ done = false }: { done?: boolean }) {
     <div className={`vy-loader${done ? ' vy-loader--done' : ''}`} role="status" aria-live="polite" aria-busy={!done}>
       <div className="vy-loader__inner">
         <div ref={stageRef} className="vy-loader__stage" aria-hidden="true">
-          <canvas ref={canvasRef} className={`vy-loader__v${webgl ? ' vy-loader__v--on' : ''}`} />
-          {!webgl && (
-            <svg className="vy-loader__v-flat" viewBox="0 0 100 100">
-              <defs>
-                <linearGradient id={gradientId} x1="0" y1="0" x2="100" y2="0" gradientUnits="userSpaceOnUse">
-                  {GOLD_STOPS.map((c, i) => <stop key={i} offset={i / (GOLD_STOPS.length - 1)} stopColor={c} />)}
-                </linearGradient>
-              </defs>
-              {VALINITY_FACETS.map((f, i) => <path key={i} d={facetPath(f)} fill={`url(#${gradientId})`} />)}
-            </svg>
-          )}
           <img ref={ethRef} className="vy-loader__eth" src={ethMetal} alt="" draggable={false} />
+          <div ref={orbiterRef} className="vy-loader__orbiter">
+            <canvas ref={canvasRef} className={`vy-loader__v${webgl ? ' vy-loader__v--on' : ''}`} />
+            {!webgl && <img className="vy-loader__v-still" src={vPoster} alt="" draggable={false} />}
+          </div>
         </div>
         <div className="vy-loader__blocks" aria-hidden="true">
           {Array.from({ length: 7 }, (_, i) => <span key={i} style={{ animationDelay: `${i * 0.14}s` }} />)}
