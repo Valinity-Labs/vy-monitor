@@ -6,22 +6,26 @@ import vyHistory from '../data/vyHistory.json';
  * VALINITY LIFETIME PRICE — the normalised trade stream behind the chart and the tape.
  *
  * Valinity has traded under several contracts across two chains. Each is an "era" with its own
- * venue and market structure, and this module flattens them into ONE list of executed trades so
- * nothing downstream has to care which era a print came from:
+ * venue and market structure, and this module flattens them into ONE list of trades so nothing
+ * downstream has to care which era a print came from:
  *
  *   MFC v1   BNB Chain   OTC order book, BUSD-quoted    2021-12 → 2022-05
  *   MFC v2   BNB Chain   OTC order book                 excluded — one $10 test fill
  *   MFC v3   BNB Chain   OTC order book, BUSD-quoted    2022-05 → 2022-06
  *   MFC v4   BNB Chain   OTC order book, BUSD-quoted    2022-10 → 2023-04
  *   VY       Ethereum    Uniswap V2 VY/WETH             2024-04 → 2025-12
+ *   VY       Ethereum    Uniswap V2 VY/USDC             2026-04 → live
  *
- * ONE BASIS THROUGHOUT: every point is the price a trade ACTUALLY EXECUTED AT. That matters
- * because this is a spliced chart — mixing an AMM's reserve mid (what DexScreener plots) with
- * the OTC eras' fill prices would make the seams between eras meaningless.
+ * WHICH PRICE IS PLOTTED:
+ *   - The OTC books and the closed VY/WETH pool plot the price each trade EXECUTED at.
+ *   - The live VY/USDC pool plots the POOL'S OWN PRICE after each trade: USDC reserve ÷ VY
+ *     reserve, from the `Sync` the pool emits with every swap. That is the price the pool quotes,
+ *     what the web app reads with getReserves() and what DexScreener shows. A large swap's
+ *     average fill differs from it by several percent, so the fill is kept separately as
+ *     `execPrice` for the tape.
  *
- * NO REBASING. Prices are joined raw, exactly as traded, with no conversion ratio applied at
- * any handoff. The eras happen to line up closely on their own (v1 ends $0.2591, v3 opens
- * $0.2609), so the curve is continuous without any help.
+ * NO REBASING. Prices are joined raw, with no conversion ratio applied at any handoff. The MFC
+ * eras happen to line up closely on their own (v1 ends $0.2591, v3 opens $0.2609).
  */
 
 export type EraId = 'mfc-v1' | 'mfc-v2' | 'mfc-v3' | 'mfc-v4' | 'vy-legacy' | 'vy-current';
@@ -47,12 +51,17 @@ export const ERAS: Record<EraId, Era> = {
   'vy-current': { id: 'vy-current', label: 'VY (live)', symbol: 'VY', chain: 'Ethereum', venue: 'Uniswap V2 · USDC', explorer: ETHERSCAN },
 };
 
-/** One executed trade, normalised across chains and venues. Always USD-denominated. */
+/** Eras charted at the pool's own price rather than each trade's fill. */
+const POOL_PRICED = new Set<string>(['vy-current']);
+
+/** One trade, normalised across chains and venues. Always USD-denominated. */
 export interface Trade {
   /** Execution time, unix SECONDS. */
   ts: number;
-  /** USD per token. */
+  /** The charted price, USD per token — see the module header for which basis each era uses. */
   price: number;
+  /** What the trade itself paid on average, when that differs from `price`. */
+  execPrice?: number;
   /** Token quantity. */
   qty: number;
   /** USD value of the fill. */
@@ -62,11 +71,21 @@ export interface Trade {
   txHash: string;
   /** Stable identity — one transaction can carry more than one fill. */
   key: string;
+  /** Position on its chain (block × 100,000 + log index), to order trades within one block. */
+  seq?: number;
   era: EraId;
   /** From the taker's side. The MFC books are buy-only; see `loadMfcTrades`. */
   side: 'buy' | 'sell';
   explorerUrl: string;
 }
+
+/**
+ * Chain order: by time, then by position on the chain within the same second. Ordering by key
+ * alone would sort same-block trades by transaction hash — effectively at random — and the last
+ * price of a block could then be one from the middle of it.
+ */
+export const compareTrades = (a: Trade, b: Trade): number =>
+  a.ts - b.ts || (a.seq ?? 0) - (b.seq ?? 0) || a.key.localeCompare(b.key);
 
 // ── MFC eras (BNB Chain) ────────────────────────────────────────────────────
 
@@ -106,6 +125,7 @@ export function loadMfcTrades(): Trade[] {
         address: t.buyer,
         txHash: t.tx,
         key: `${t.tx}:${t.logIndex}`,
+        seq: t.block * 100_000 + t.logIndex,
         era: t.era as EraId,
         side: 'buy' as const,
         explorerUrl: `${BSCSCAN}/tx/${t.tx}`,
@@ -113,11 +133,13 @@ export function loadMfcTrades(): Trade[] {
     });
 }
 
-// ── Legacy VY era (Ethereum) ────────────────────────────────────────────────
+// ── Ethereum eras ───────────────────────────────────────────────────────────
 
 interface RawVyTrade {
   era: string; block: number; ts: number; tx: string; logIndex: number;
   side: string; maker: string; vy: string; quote: string; quoteUsd: number;
+  /** The pool's price (USD) after this swap, from its Sync event. */
+  poolPrice?: number | null;
 }
 
 interface RawVyEra { id: string; quote: { decimals: number }; [k: string]: unknown }
@@ -134,8 +156,7 @@ interface RawVyEra { id: string; quote: { decimals: number }; [k: string]: unkno
  * So the chart starts that era at 2024-04-04. Two independent things say this is the honest
  * boundary rather than a flattering one: the era then opens at $0.3445, where the price actually
  * settled, and the MFC→Ethereum seam becomes +10% instead of +104%. The excluded swaps remain in
- * src/data/vyHistory.json, and the cost is stated on the page — 281 swaps, $452,118 of real
- * volume, not shown.
+ * src/data/vyHistory.json.
  *
  * An outlier filter was tried for this and rejected: the spike is 129 prints, so a local rolling
  * median sits INSIDE it and removes nothing, while wrongly clipping MFC's early climb.
@@ -155,22 +176,24 @@ const OUTLIER_RATIO = 5;   // flag a print beyond 5x (or under 1/5x) its local m
  * FLASH-LOAN FILTER — for the AMM eras only.
  *
  * A flash loan can push an AMM's reserves to any ratio and release them in the same atomic
- * transaction, emitting swaps at prices that never existed for anyone. This pool has exactly one
- * such event: 2026-07-14, transaction 0x2176cea6…, ELEVEN swaps moving 453,676 VY — fourteen
- * times the pool's entire reserves — printing between $0.0382 and $228.84 while VY traded near
- * $0.15. (The web app documents the same event from the Sync side: "6 prints of $147–$230".)
+ * transaction, emitting swaps at prices that never existed for anyone. The live pool has had one:
+ * 2026-07-14, transaction 0x2176cea6…, ELEVEN swaps moving 453,676 VY — fourteen times the pool's
+ * entire reserves — printing up to $228.84 while VY traded near $0.15. (The web app documents the
+ * same event from the Sync side: "6 prints of $147–$230".)
  *
  * Detection is a local rolling median: local so a genuine trend is never clipped, median so a
  * cluster of manipulated prints cannot drag the reference. But the UNIT OF REMOVAL is the whole
  * TRANSACTION, not the individual print — an atomic transaction is one economic event, and its
- * quiet-looking legs (this one also printed $0.1207 and $0.1051) are the same manipulation seen
- * from the other side. Dropping only the loud legs would leave the pool's distorted path in.
+ * quiet-looking legs are the same manipulation seen from the other side.
+ *
+ * Exported because it runs twice: over the committed snapshot here, and again in the page over
+ * the live pool's merged trades, so a manipulation after the snapshot is dropped as well.
  *
  * Scoped to the AMM eras deliberately: the MFC books hold no reserves, so they cannot be
  * flash-loaned, and their prints are sparse enough that MFC v1's genuine 14x climb would trip a
  * median filter.
  */
-function dropManipulatedTransactions(trades: Trade[]): Trade[] {
+export function dropManipulatedTransactions(trades: Trade[]): Trade[] {
   if (trades.length < 2 * OUTLIER_WINDOW + 1) return trades;
   const bad = new Set<string>();
   for (let i = 0; i < trades.length; i++) {
@@ -192,7 +215,7 @@ function dropManipulatedTransactions(trades: Trade[]): Trade[] {
  * Unlike the OTC books these venues have two sides, so `side` is real. The legacy pool quotes in
  * ETH, so each swap carries the ETH/USD mark that applied at its own block (see the builder) —
  * USD is derived from that, never from today's ETH price. The live pool quotes in USDC, so its
- * mark is 1.
+ * mark is 1, and it is charted at the pool's own price (see the module header).
  */
 export function loadEthTrades(): Trade[] {
   const decimalsFor = new Map<string, number>(
@@ -204,27 +227,29 @@ export function loadEthTrades(): Trade[] {
     .map((t) => {
       const qty = Number(formatUnits(BigInt(t.vy), 18));
       const usd = Number(formatUnits(BigInt(t.quote), decimalsFor.get(t.era) ?? 18)) * t.quoteUsd;
+      const execPrice = usd / qty;
       return {
         ts: t.ts,
-        price: usd / qty,
+        price: POOL_PRICED.has(t.era) && t.poolPrice ? t.poolPrice : execPrice,
+        execPrice,
         qty,
         usd,
         address: t.maker,
         txHash: t.tx,
         key: `${t.tx}:${t.logIndex}`,
+        seq: t.block * 100_000 + t.logIndex,
         era: t.era as EraId,
         side: t.side === 'sell' ? ('sell' as const) : ('buy' as const),
         explorerUrl: `${ETHERSCAN}/tx/${t.tx}`,
       };
     })
-    .sort((a, b) => a.ts - b.ts || a.key.localeCompare(b.key));
+    .sort(compareTrades);
   return dropManipulatedTransactions(trades);
 }
 
 /** Every era, oldest print first. */
 export function loadAllTrades(): Trade[] {
-  return [...loadMfcTrades(), ...loadEthTrades()]
-    .sort((a, b) => a.ts - b.ts || a.key.localeCompare(b.key));
+  return [...loadMfcTrades(), ...loadEthTrades()].sort(compareTrades);
 }
 
 export const MFC_META = mfcHistory;
@@ -270,18 +295,6 @@ function bucketing(resolution: string) {
 }
 
 /**
- * OHLC over a trade stream, with EMPTY BUCKETS CARRIED FORWARD at the previous close.
- *
- * Deliberately NOT the sparse, no-fill basis DexScreener uses for AMM pairs. Most of this
- * lifetime was an OTC tranche book, where between fills the standing offer price IS the market
- * price — nothing about the price is unknown during a quiet stretch. Carrying the close forward
- * states that; leaving gaps would imply the price was undefined when it demonstrably was not.
- *
- * It also matters for the two genuine dead periods — Jun–Oct 2022 and Apr 2023–Apr 2024, when
- * no venue was live at all. Those render as flat lines, which is the honest shape: the asset
- * did not trade, so its last traded price is the only price there is.
- */
-/**
  * A move this large across an era boundary means the price did NOT carry from one contract to
  * the next. Every MFC handoff is well inside it (+0.7%, +5.7%, +10%); the legacy→current
  * Ethereum handoff is −80% and is not.
@@ -289,7 +302,7 @@ function bucketing(resolution: string) {
 const SERIES_BREAK = 0.5;
 
 /**
- * OHLC over a trade stream.
+ * OHLC over a trade stream (which must be in chain order — see `compareTrades`).
  *
  * EMPTY BUCKETS CARRY THE PREVIOUS CLOSE FORWARD. Deliberately not the sparse, no-fill basis
  * DexScreener uses for AMM pairs: most of this lifetime was an OTC tranche book, where between

@@ -17,9 +17,11 @@ import { createStaticDatafeed } from '../utils/staticDatafeed';
  * them for BTC, ETH and gold). Each is a TradingView custom indicator, so it gets a legend row
  * and an eye toggle like any built-in study.
  *
- * The chart is driven by a static datafeed over the trades it is handed, so `subscribeBars` is
- * a genuine no-op. Fresh swaps arrive through `useLiveTail`, which hands this component a new
- * trade list; the widget is rebuilt on that rather than streamed into.
+ * LIVE DATA IS STREAMED, NOT REBUILT. The widget is created once per series (view, symbol,
+ * resolution, window, theme). When the trade list grows — the page catching up from the committed
+ * snapshot, or a new swap while the page is open — the new candles are pushed into the chart
+ * already on screen. Rebuilding instead repainted everything, which read as old data followed by
+ * a reset.
  */
 
 const LIB_SRC = `${import.meta.env.BASE_URL}charting_library/charting_library.standalone.js`;
@@ -99,9 +101,12 @@ interface TVPineJS {
 /**
  * One overlay as a custom indicator: a single line plot that is a price study linked to the main
  * series, so it shares the candles' log scale and zoom instead of getting a scale of its own.
+ * Values come through `valueAt`, which reads the overlay's LATEST data rather than the data it
+ * was created with, so candles streamed in later get correct line values too.
  */
 function overlayIndicator(
-  PineJS: TVPineJS, o: ChartOverlay, closeAt: (period: string, barMs: number) => number, light: boolean
+  PineJS: TVPineJS, o: ChartOverlay, valueAt: (ms: number) => number,
+  closeAt: (period: string, barMs: number) => number, light: boolean
 ) {
   return {
     name: o.label,
@@ -133,7 +138,7 @@ function overlayIndicator(
         // The library first calls `main` with an empty context to discover the plot.
         if (!Number.isFinite(t)) return [NaN];
         const ms = t < 1e11 ? t * 1000 : t;
-        return [o.valueAt(closeAt(PineJS.Std.period(ctx), ms))];
+        return [valueAt(closeAt(PineJS.Std.period(ctx), ms))];
       };
     },
   };
@@ -143,10 +148,16 @@ const prefersLight = () =>
   typeof window !== 'undefined' && window.matchMedia?.('(prefers-color-scheme: light)').matches;
 
 export function PriceChart({
-  trades, symbol, exchange, resolution = DEFAULT_RES, overlays = NO_OVERLAYS, visibleFrom,
+  trades, seriesKey, symbol, exchange, resolution = DEFAULT_RES, overlays = NO_OVERLAYS, visibleFrom,
   overlayVisible = NO_VISIBLE, onOverlayToggle, height = 460,
 }: {
-  trades: Trade[]; symbol: string; exchange: string; resolution?: string;
+  trades: Trade[];
+  /**
+   * Identity of the series on screen. The widget is rebuilt only when this — or the symbol,
+   * resolution, window or theme — changes. A trade list that merely GROWS is streamed in.
+   */
+  seriesKey: string;
+  symbol: string; exchange: string; resolution?: string;
   overlays?: ChartOverlay[];
   /** Which overlays are switched on, by id. Anything missing is off. */
   overlayVisible?: Record<string, boolean>;
@@ -159,6 +170,24 @@ export function PriceChart({
   const containerRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [light, setLight] = useState(prefersLight);
+
+  // The open widget reads the LATEST trades and overlays through these refs, so data that changes
+  // while the chart is on screen reaches it without a rebuild.
+  const tradesRef = useRef(trades);
+  const overlaysRef = useRef(overlays);
+  const feedRef = useRef<ReturnType<typeof createStaticDatafeed> | null>(null);
+  const closeFnsRef = useRef(new Map<string, (barMs: number) => number>());
+
+  // Declared BEFORE the widget effect: when a new series and new trades arrive together, the
+  // rebuild must already see the new trades.
+  useEffect(() => {
+    if (tradesRef.current === trades) return;
+    tradesRef.current = trades;
+    closeFnsRef.current.clear();
+    feedRef.current?.push();
+  }, [trades]);
+
+  useEffect(() => { overlaysRef.current = overlays; }, [overlays]);
 
   // Overlay on/off is applied to the LIVE widget rather than rebuilding it, so switching a line
   // keeps the viewer's zoom. The widget effect reads these refs when it creates the studies.
@@ -187,20 +216,28 @@ export function PriceChart({
     return () => mq.removeEventListener('change', onChange);
   }, []);
 
+  // Which overlays exist decides the studies to create; their data can change without a rebuild.
+  const overlayKey = overlays.map((o) => o.id).join(',');
+
   useEffect(() => {
-    if (!containerRef.current || !trades.length) return;
+    if (!containerRef.current || !tradesRef.current.length) return;
     let widget: TVWidget | undefined;
     let cancelled = false;
     const studies = studiesRef.current;
+    const specs = overlaysRef.current;
 
-    // Candle close instants per resolution, built on first use: the overlays ask for whichever
-    // resolution the viewer has picked.
-    const closeFns = new Map<string, (barMs: number) => number>();
+    // Candle close instants per resolution, built on first use and dropped whenever the trade
+    // list changes: the overlays ask for whichever resolution the viewer has picked.
+    const closeFns = closeFnsRef.current;
+    closeFns.clear();
     const closeAt = (period: string, barMs: number) => {
       let f = closeFns.get(period);
-      if (!f) { f = barCloseTime(trades, period); closeFns.set(period, f); }
+      if (!f) { f = barCloseTime(tradesRef.current, period); closeFns.set(period, f); }
       return f(barMs);
     };
+
+    const feed = createStaticDatafeed(() => tradesRef.current, symbol, exchange);
+    feedRef.current = feed;
 
     loadLibrary()
       .then(() => {
@@ -211,7 +248,7 @@ export function PriceChart({
         widget = new Widget({
           container: containerRef.current,
           library_path: LIBRARY_PATH,
-          datafeed: createStaticDatafeed(trades, symbol, exchange),
+          datafeed: feed,
           symbol,
           interval: resolution,
           locale: 'en',
@@ -230,7 +267,11 @@ export function PriceChart({
           ],
           enabled_features: ['hide_left_toolbar_by_default'],
           custom_indicators_getter: (PineJS: TVPineJS) =>
-            Promise.resolve(overlays.map((o) => overlayIndicator(PineJS, o, closeAt, light))),
+            Promise.resolve(specs.map((o) => overlayIndicator(
+              PineJS, o,
+              (ms) => overlaysRef.current.find((x) => x.id === o.id)?.valueAt(ms) ?? NaN,
+              closeAt, light,
+            ))),
           // The overlay indicators read this component's data through their closures, which a
           // worker thread cannot see — keep indicator maths on the main thread.
           workers: { enabled: false },
@@ -242,16 +283,18 @@ export function PriceChart({
             'scalesProperties.logScale': true,
           },
         });
+        // A handle for local debugging and tests only; stripped from production builds.
+        if (import.meta.env.DEV) (window as unknown as { __vyChart?: TVWidget }).__vyChart = widget;
 
         widget.onChartReady(() => {
           if (cancelled) return;
-          // Every era here ended in the past, but the widget opens anchored at "now" — so the
-          // bars can load correctly and STILL sit far off-screen to the left. Snap the viewport
-          // onto the data itself. This runs once when the chart is ready and again the first
-          // time data actually lands, because on a cold load the ready callback can fire before
-          // any bar has arrived and a range set against an empty series does not stick.
-          // A chosen window opens on itself and lets the price scale fit it; all history opens on
-          // the band the asset actually lived in.
+          // The widget opens anchored at "now", so bars can load correctly and still sit
+          // off-screen. Snap the viewport onto the data — once when the chart is ready and again
+          // the first time data lands, because on a cold load ready can fire before any bar has
+          // arrived and a range set against an empty series does not stick. A chosen window opens
+          // on itself and lets the price scale fit it; all history opens on the band the asset
+          // actually lived in.
+          const trades = tradesRef.current;
           const last = trades[trades.length - 1].ts;
           const first = visibleFrom !== undefined ? Math.max(visibleFrom, trades[0].ts) : trades[0].ts;
           const pad = Math.max((last - first) * 0.03, 86_400);
@@ -267,9 +310,6 @@ export function PriceChart({
             } catch {
               /* range snapping is a nicety; a failure must not blank the chart */
             }
-            // Open on the band the asset actually lived in. Every trade is still loaded and
-            // still in the tape — the Ethereum launch spike is simply above the initial
-            // viewport, and zooming out reaches it.
             if (band) {
               try {
                 const scale = chart.getPanes?.()[0]?.getMainSourcePriceScale();
@@ -277,7 +317,7 @@ export function PriceChart({
                 scale?.setAutoScale?.(false);
                 scale?.setVisiblePriceRange?.(band);
               } catch {
-                /* the log scale below already keeps the full range legible */
+                /* the full range stays reachable by zooming out */
               }
             }
           };
@@ -288,7 +328,7 @@ export function PriceChart({
           }
           snap();
 
-          for (const o of overlays) {
+          for (const o of specs) {
             try {
               const chart = widget?.activeChart();
               void chart?.createStudy?.(o.label, false, false)?.then((id) => {
@@ -321,7 +361,7 @@ export function PriceChart({
       studies.clear();
       try { widget?.remove(); } catch { /* already torn down */ }
     };
-  }, [trades, symbol, exchange, resolution, overlays, visibleFrom, light]);
+  }, [seriesKey, symbol, exchange, resolution, visibleFrom, overlayKey, light]);
 
   if (error) {
     return (

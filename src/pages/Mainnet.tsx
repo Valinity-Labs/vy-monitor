@@ -249,7 +249,13 @@ const fetchData = async () => {
   const daxSwapsPaused = daxGet(4, 'swapsPaused', false);
 
   // Fetch each pool's reserves
-  type DaxPool = { asset: Address; symbol: string; reserveVY: Amount<bigint>; reserveAsset: Amount<bigint>; reserveAssetUSD: Amount<bigint> };
+  // `usdPriced` is false while the asset leg is only the Uniswap-imputed fallback
+  // below; the card then says so instead of printing it. `vyPriceUSD` is filled in
+  // once the VDAO DAX has loaded — see "VY price per DAX pool".
+  type DaxPool = {
+    asset: Address; symbol: string; reserveVY: Amount<bigint>; reserveAsset: Amount<bigint>;
+    reserveAssetUSD: Amount<bigint>; usdPriced: boolean; vyPriceUSD: Amount<bigint> | string;
+  };
   const daxPools: DaxPool[] = [];
   if (numPools > 0n) {
     const poolContracts = [];
@@ -300,6 +306,8 @@ const fetchData = async () => {
           reserveVY: new Amount(VY, reserveVY),
           reserveAsset: new Amount(currency!, reserveAsset),
           reserveAssetUSD,
+          usdPriced: !!known,
+          vyPriceUSD: 'no USD price',
         });
       } else {
         daxErrors.push(`getPoolReserves(${i}): ${(r.error as Error).message ?? 'reverted'}`);
@@ -400,6 +408,37 @@ const fetchData = async () => {
         reserveAsset: new Amount(assetInfo.currency, reserveAsset),
         reserveAssetUSD,
       });
+    }
+  }
+
+  // ─── VY price per DAX pool, in USD ─────────────────────────
+  // asset leg in USD ÷ VY leg. WETH/WBTC/PAXG are already on VAO TWAP marks. An
+  // asset with no oracle (VGC) is priced from the VDAO DAX, where it trades against
+  // marked assets — at the HIGHEST such pool, by request. With no VDAO pool to read,
+  // the card says "no USD price" rather than showing the Uniswap-imputed fallback.
+  const vdaoUsdPerToken = (token: Address): bigint | null => {
+    let best: bigint | null = null;
+    for (const p of vdaoDaxPools) {
+      const rVdao = p.reserveVdao.value as bigint;
+      if (p.vdaoToken.toLowerCase() !== token.toLowerCase() || !p.reserveAssetUSD || rVdao === 0n) continue;
+      const unit = 10n ** BigInt(p.reserveVdao.currency.decimals ?? 18);
+      const px = ((p.reserveAssetUSD.value as bigint) * unit) / rVdao; // USD 1e18 per whole token
+      if (best === null || px > best) best = px;
+    }
+    return best;
+  };
+  for (const pool of daxPools) {
+    if (!pool.usdPriced) {
+      const px = vdaoUsdPerToken(pool.asset);
+      if (px !== null && px > 0n) {
+        const unit = 10n ** BigInt(pool.reserveAsset.currency.decimals ?? 18);
+        pool.reserveAssetUSD = new Amount(USD, ((pool.reserveAsset.value as bigint) * px) / unit);
+        pool.usdPriced = true;
+      }
+    }
+    const rVy = pool.reserveVY.value as bigint;
+    if (pool.usdPriced && rVy > 0n) {
+      pool.vyPriceUSD = new Amount(USD, ((pool.reserveAssetUSD.value as bigint) * 10n ** 18n) / rVy);
     }
   }
 
@@ -1428,10 +1467,10 @@ function Content({ data, volume, volProgress, holders }: { data: MonitorData; vo
                   <div key={pool.symbol} className="box" style={{ marginBottom: 0 }}>
                     <h4>{pool.symbol}</h4>
                     {renderValues({
-                      [`${pool.symbol} Token`]: pool.asset,
+                      'VY Price (USD)': pool.vyPriceUSD,
                       'VY Reserve': pool.reserveVY,
                       [`${pool.symbol} Reserve`]: pool.reserveAsset,
-                      [`${pool.symbol} Reserve (USDC)`]: pool.reserveAssetUSD,
+                      [`${pool.symbol} Reserve (USDC)`]: pool.usdPriced ? pool.reserveAssetUSD : 'no USD price',
                     })}
                   </div>
                 ))}

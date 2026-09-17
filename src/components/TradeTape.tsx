@@ -72,7 +72,8 @@ export function TradeTape({
                   <td className="vy-tape__c-side">
                     <span className={`vy-tape__side vy-tape__side--${t.side}`}>{t.side}</span>
                   </td>
-                  <td className="vy-tape__num vy-tape__price">{price(t.price)}</td>
+                  {/* What this trade actually paid. The chart plots the pool's price after it. */}
+                  <td className="vy-tape__num vy-tape__price">{price(t.execPrice ?? t.price)}</td>
                   <td className="vy-tape__num vy-tape__c-amount">
                     {qty(t.qty)} <span className="vy-tape__sym">{ERAS[t.era].symbol}</span>
                   </td>

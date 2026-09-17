@@ -858,6 +858,18 @@ th {
   color: var(--vy-ink-3);
 }
 
+/* Held for the moment the page waits for the live pool, so the chart's first frame is the present. */
+.vy-price__loading {
+  min-height: 36rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.72rem;
+  color: var(--vy-ink-3);
+  border-radius: 0.5rem;
+  background: rgba(127, 127, 127, 0.06);
+}
+
 .vy-chart {
   width: 100%;
   min-height: 320px;

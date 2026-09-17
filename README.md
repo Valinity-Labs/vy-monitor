@@ -141,10 +141,11 @@ tape nunca necesitan saber de qué era viene cada operación:
 | VY (legacy) | Ethereum | Uniswap V2 VY/WETH | abr 2024 – dic 2025 | 3.526 |
 | VY (live) | Ethereum | Uniswap V2 VY/USDC | abr 2026 – **hoy** | 1.053 |
 
-**Una sola base de precio:** todo punto es el precio al que una operación se ejecutó
-realmente. No se usa el *reserve mid* (lo que grafica DexScreener) porque las eras MFC no
-tienen reservas, y mezclar bases haría que las uniones entre eras no signifiquen nada.
-**No hay reconversión:** las eras se empalman en crudo, sin ratio.
+**Qué precio se grafica:** el pool actual (VY/USDC) se grafica al **precio del propio pool**
+después de cada operación — reserva de USDC ÷ reserva de VY, del evento `Sync` — que es el
+precio que cotiza el pool, el que lee la web app con `getReserves()` y el que muestra
+DexScreener. El tape muestra lo que pagó cada operación. Las eras MFC (sin reservas) y el pool
+legacy se grafican al precio ejecutado. **No hay reconversión:** las eras se empalman en crudo.
 
 ### Regenerar los datos
 
@@ -158,9 +159,11 @@ node scripts/build-benchmarks.mjs    # -> src/data/benchmarks.json   (Chainlink 
 ```
 
 La era actual **sigue viva**, así que `vyHistory.json` es una foto del bloque en que se generó
-(`builtAtBlock`). `src/utils/liveTail.ts` completa la diferencia en runtime con un solo
-`getLogs` desde ese bloque hasta la cabeza, de modo que el gráfico llega al presente sin que la
-página tenga que esperar a la red para dibujar. Si esa llamada falla, se conserva la foto.
+(`builtAtBlock`). `src/utils/liveTail.ts` se pone al día al cargar — un `getLogs` de Swap + Sync
+y peticiones JSON-RPC agrupadas — y luego consulta cada 30 segundos sólo los bloques nuevos. La
+sección espera hasta 2,5 s a esa puesta al día antes de dibujar, así que lo primero que se ve es
+el presente; las velas nuevas se **añaden al gráfico abierto** (nunca se reconstruye). Si algo
+falla, se conserva lo que hay y se reintenta en la siguiente consulta.
 Lo mismo con `benchmarks.json`: al cargar, el tail lee los tres feeds desde su `builtAtBlock`
 hasta la cabeza (una muestra por día, 60 llamadas como máximo).
 

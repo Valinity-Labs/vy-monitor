@@ -1,11 +1,15 @@
 import { buildCandles, decimalsForPrice, type Bar, type Trade } from './priceHistory';
 
 /**
- * A TradingView datafeed over a FIXED trade list — history that has already ended.
+ * A TradingView datafeed over a trade list that can GROW while the chart is open.
  *
  * Kept out of the chart component so it can be exercised directly in tests: the awkward part
  * of this file is not drawing, it is answering the library's request windows correctly, and
  * that is worth checking without a browser.
+ *
+ * New trades are STREAMED into the chart already on screen (`push`) instead of being handled by
+ * rebuilding the widget. A rebuild repaints from scratch, and on a slow connection that read as
+ * the chart showing old data and then resetting.
  */
 
 export interface TVPeriodParams { from: number; to: number; firstDataRequest: boolean; countBack: number }
@@ -18,11 +22,19 @@ export interface TVBarsMeta { noData: boolean; nextTime?: number }
 // every MFC bar has a real range.
 export const SUPPORTED_RES = ['60', '240', '1D', '1W', '1M'];
 
-export function createStaticDatafeed(trades: Trade[], symbol: string, exchange: string) {
-  // Candles are rebuilt per resolution rather than cached: the whole history is a few hundred
+interface Subscriber { resolution: string; onTick: (bar: TVBar) => void; lastTime: number }
+
+export function createStaticDatafeed(source: Trade[] | (() => Trade[]), symbol: string, exchange: string) {
+  const tradesNow = typeof source === 'function' ? source : () => source;
+  // Candles are rebuilt per request rather than cached: the whole history is a few thousand
   // trades, so bucketing it costs less than the bookkeeping a cache would need.
-  const barsFor = (resolution: string): Bar[] => buildCandles(trades, resolution);
-  const lastPrice = trades.length ? trades[trades.length - 1].price : 1;
+  const barsFor = (resolution: string): Bar[] => buildCandles(tradesNow(), resolution);
+  const initial = tradesNow();
+  const lastPrice = initial.length ? initial[initial.length - 1].price : 1;
+
+  // The newest bar handed to the chart per resolution — where a live subscription picks up from.
+  const newestServed = new Map<string, number>();
+  const subscribers = new Map<string, Subscriber>();
 
   return {
     onReady: (cb: (c: unknown) => void) =>
@@ -53,19 +65,16 @@ export function createStaticDatafeed(trades: Trade[], symbol: string, exchange: 
         has_weekly_and_monthly: true,
         supported_resolutions: SUPPORTED_RES,
         volume_precision: 0,
-        // The eras plotted here are closed, so there is no live bar to wait on. Saying
-        // "streaming" would leave the widget showing a perpetual connecting state.
         data_status: 'endofday',
       }), 0),
 
     /**
-     * Bars for a window — written for history that ENDED IN THE PAST, which is the whole
-     * difficulty here.
+     * Bars for a window.
      *
      * The widget's first request is always anchored at now: `[now − countBack·interval, now]`.
-     * For a closed era that window lies entirely to the RIGHT of every bar we have, so a naive
-     * `from`/`to` filter returns nothing, and answering that with a bare `noData: true` tells
-     * the widget to stop looking — it never pages back and the chart renders empty.
+     * For history that ended in the past that window lies entirely to the RIGHT of every bar, so
+     * a naive `from`/`to` filter returns nothing, and answering that with a bare `noData: true`
+     * tells the widget to stop looking — it never pages back and the chart renders empty.
      *
      * Two things prevent that. First, `countBack` is honoured as the library asks: when it is
      * present, `from` is ignored and the last `countBack` bars ending at `to` are returned, so
@@ -95,7 +104,11 @@ export function createStaticDatafeed(trades: Trade[], symbol: string, exchange: 
         ? before.slice(-periodParams.countBack)
         : before.filter((b) => b.time >= fromMs);
 
-      if (bars.length) return onResult(bars, { noData: false });
+      if (bars.length) {
+        const newest = bars[bars.length - 1].time;
+        if (newest > (newestServed.get(resolution) ?? -Infinity)) newestServed.set(resolution, newest);
+        return onResult(bars, { noData: false });
+      }
 
       // Nothing in the window: point back at the newest earlier bar, or — if the window is
       // already before the first bar — say plainly that history has ended.
@@ -103,8 +116,26 @@ export function createStaticDatafeed(trades: Trade[], symbol: string, exchange: 
       return onResult([], older ? { noData: true, nextTime: older.time } : { noData: true });
     },
 
-    // Closed history: nothing streams. Kept as required no-ops.
-    subscribeBars: () => { },
-    unsubscribeBars: () => { },
+    subscribeBars: (_symbolInfo: TVSymbolInfo, resolution: string, onTick: (bar: TVBar) => void, uid: string) => {
+      subscribers.set(uid, { resolution, onTick, lastTime: newestServed.get(resolution) ?? -Infinity });
+    },
+
+    unsubscribeBars: (uid: string) => {
+      subscribers.delete(uid);
+    },
+
+    /**
+     * The trade list has grown: send each open subscription every bar from the newest one its
+     * chart already holds onwards, oldest first. The library updates that bar in place and
+     * appends the rest — bars must never go backwards in time, which this guarantees.
+     */
+    push: () => {
+      for (const sub of subscribers.values()) {
+        const all = barsFor(sub.resolution);
+        const fresh = sub.lastTime === -Infinity ? all.slice(-1) : all.filter((b) => b.time >= sub.lastTime);
+        for (const bar of fresh) sub.onTick(bar);
+        if (fresh.length) sub.lastTime = fresh[fresh.length - 1].time;
+      }
+    },
   };
 }

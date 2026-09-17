@@ -1,8 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useLiveTail } from '../utils/liveTail';
 import { PriceChart, type ChartOverlay } from './PriceChart';
 import { TradeTape } from './TradeTape';
-import { loadAllTrades, type EraId, type Trade } from '../utils/priceHistory';
+import {
+  compareTrades, dropManipulatedTransactions, loadAllTrades, type EraId, type Trade,
+} from '../utils/priceHistory';
 import { BENCHMARKS, BENCHMARK_SNAPSHOT, mergeSamples, rebased } from '../utils/benchmarks';
 
 /**
@@ -13,14 +15,23 @@ import { BENCHMARKS, BENCHMARK_SNAPSHOT, mergeSamples, rebased } from '../utils/
  * on BNB Chain, then VY on Ethereum), so all three always describe the same set of trades.
  *
  * The current-pool view also draws BTC, ETH and gold — the reserve's three assets — each started
- * at the pool's first price, so the chart shows VY against simply holding what backs it.
+ * at VY's price at the start of the chosen range, so the chart shows VY against simply holding
+ * what backs it.
  *
- * Everything here comes from committed JSON, so it paints on the first frame. That is why it
- * sits ABOVE the RPC gate in Mainnet: the balance sheet needs a few hundred round trips and
- * roughly fifteen seconds, and a chart of closed history has no reason to wait on it.
+ * THE FIRST FRAME IS THE PRESENT. History ships in the bundle, but the bundle is only as current
+ * as its last build, so the section waits briefly for the live catch-up (useLiveTail) before
+ * drawing. It sits ABOVE the RPC gate in Mainnet because that wait is a couple of round trips,
+ * not the balance sheet's fifteen seconds.
  */
 
 const LIVE_ERA: EraId = 'vy-current';
+
+/**
+ * How long to wait for the live catch-up before drawing from the snapshot instead. The catch-up
+ * normally lands well inside this; when it does not, the snapshot is shown and the present is
+ * streamed into that same chart when it arrives — never a redraw.
+ */
+const FIRST_PAINT_WAIT_MS = 2500;
 
 type View = 'live' | 'genesis';
 
@@ -103,20 +114,28 @@ export function LifetimePrice() {
   const snapshot = useMemo(() => loadAllTrades(), []);
   const tail = useLiveTail();
 
-  // Keep the SAME array reference when there is no tail, so the chart does not tear down and
-  // rebuild the TradingView widget (and lose the viewer's zoom) on every poll that finds
-  // nothing new — which is most of them.
+  const [waited, setWaited] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setWaited(true), FIRST_PAINT_WAIT_MS);
+    return () => clearTimeout(timer);
+  }, []);
+  const ready = tail.settled || waited;
+
+  // The committed snapshot plus everything since. The flash-loan filter runs again over the live
+  // pool's merged trades, so a manipulation that happens after the snapshot is dropped too. The
+  // SAME array comes back when nothing is new, so nothing downstream redraws.
   const trades = useMemo(() => {
     if (!tail.trades.length) return snapshot;
     const seen = new Set(snapshot.map((t) => t.key));
     const fresh = tail.trades.filter((t) => !seen.has(t.key));
     if (!fresh.length) return snapshot;
-    return [...snapshot, ...fresh].sort((a, b) => a.ts - b.ts || a.key.localeCompare(b.key));
+    const merged = [...snapshot, ...fresh].sort(compareTrades);
+    const keep = new Set(dropManipulatedTransactions(merged.filter((t) => t.era === LIVE_ERA)).map((t) => t.key));
+    return merged.filter((t) => t.era !== LIVE_ERA || keep.has(t.key));
   }, [snapshot, tail.trades]);
 
   const samples = useMemo(() => mergeSamples(BENCHMARK_SNAPSHOT, tail.benchmarks), [tail.benchmarks]);
 
-  // Memoised for the same reason: the widget is rebuilt only when the view or the data changes.
   const shown = useMemo(
     () => (view === 'live' ? trades.filter((t) => t.era === LIVE_ERA) : trades),
     [trades, view]
@@ -179,7 +198,7 @@ export function LifetimePrice() {
           <div className="vy-price__sub">{cfg.sub}</div>
         </div>
         <div className="vy-price__controls">
-          <span className="vy-price__sub">{fmtDate(start.ts)} → {fmtDate(last.ts)}</span>
+          {ready && <span className="vy-price__sub">{fmtDate(start.ts)} → {fmtDate(last.ts)}</span>}
           <div className="vy-price__ranges" role="group" aria-label="Time range">
             {RANGES.map((r) => (
               <button
@@ -208,59 +227,65 @@ export function LifetimePrice() {
         </div>
       </div>
 
-      <div className="vy-price__stats">
-        <Stat label="First trade" value={fmtPrice(first.price)} />
-        <Stat label="Last trade" value={fmtPrice(last.price)} />
-        <Stat label="All-time low" value={fmtPrice(low)} />
-        <Stat label="All-time high" value={fmtPrice(high)} />
-        <Stat label="Volume" value={fmtUsd(volume)} />
-        <Stat label="Trades" value={shown.length.toLocaleString('en-US')} />
-        <Stat label="Wallets" value={makers.toLocaleString('en-US')} />
-      </div>
+      {!ready ? (
+        <div className="vy-price__loading" aria-busy="true">Loading the live pool…</div>
+      ) : (
+        <>
+          <div className="vy-price__stats">
+            <Stat label="First price" value={fmtPrice(first.price)} />
+            <Stat label="Price" value={fmtPrice(last.price)} />
+            <Stat label="All-time low" value={fmtPrice(low)} />
+            <Stat label="All-time high" value={fmtPrice(high)} />
+            <Stat label="Volume" value={fmtUsd(volume)} />
+            <Stat label="Trades" value={shown.length.toLocaleString('en-US')} />
+            <Stat label="Wallets" value={makers.toLocaleString('en-US')} />
+          </div>
 
-      {overlays.length > 0 && (
-        <div className="vy-price__bench">
-          <span className="vy-price__bench-lead">All started at {fmtPrice(start.price)} on {fmtDate(start.ts)}</span>
-          <span className="vy-price__bench-item">
-            <strong>VY</strong> {fmtPct(last.price / start.price - 1)}
-          </span>
-          {overlays.map((o) => {
-            const on = !!linesOn[o.id];
-            return (
-              <button
-                key={o.id}
-                type="button"
-                className={`vy-price__bench-item vy-price__bench-toggle vy-price__bench-toggle--${o.id}`}
-                aria-pressed={on}
-                title={`${on ? 'Hide' : 'Show'} ${o.label} on the chart`}
-                onClick={() => setLinesOn((prev) => ({ ...prev, [o.id]: !on }))}
-              >
-                <span className={`vy-price__bench-swatch vy-price__bench-swatch--${o.id}`} />
-                <strong>{o.label}</strong> {fmtPct(o.valueAt(last.ts * 1000) / start.price - 1)}
-              </button>
-            );
-          })}
-          <span className="vy-price__bench-hint">
-            Click BTC, ETH or Gold to show or hide it on the chart — or use the 👁 next to its name in the chart legend
-          </span>
-        </div>
+          {overlays.length > 0 && (
+            <div className="vy-price__bench">
+              <span className="vy-price__bench-lead">All started at {fmtPrice(start.price)} on {fmtDate(start.ts)}</span>
+              <span className="vy-price__bench-item">
+                <strong>VY</strong> {fmtPct(last.price / start.price - 1)}
+              </span>
+              {overlays.map((o) => {
+                const on = !!linesOn[o.id];
+                return (
+                  <button
+                    key={o.id}
+                    type="button"
+                    className={`vy-price__bench-item vy-price__bench-toggle vy-price__bench-toggle--${o.id}`}
+                    aria-pressed={on}
+                    title={`${on ? 'Hide' : 'Show'} ${o.label} on the chart`}
+                    onClick={() => setLinesOn((prev) => ({ ...prev, [o.id]: !on }))}
+                  >
+                    <span className={`vy-price__bench-swatch vy-price__bench-swatch--${o.id}`} />
+                    <strong>{o.label}</strong> {fmtPct(o.valueAt(last.ts * 1000) / start.price - 1)}
+                  </button>
+                );
+              })}
+              <span className="vy-price__bench-hint">
+                Click BTC, ETH or Gold to show or hide it on the chart — or use the 👁 next to its name in the chart legend
+              </span>
+            </div>
+          )}
+
+          <PriceChart
+            trades={shown} seriesKey={view} symbol={cfg.symbol} exchange={cfg.exchange}
+            resolution={resolution} overlays={overlays} visibleFrom={range.from ?? undefined}
+            overlayVisible={linesOn}
+            onOverlayToggle={(id, on) => setLinesOn((prev) => (!!prev[id] === on ? prev : { ...prev, [id]: on }))}
+          />
+
+          <TradeTape
+            trades={shown}
+            symbol="VY"
+            limit={100}
+            note={view === 'genesis'
+              ? "Amounts are in each era's own token — MFC on BNB Chain, VY on Ethereum — and link to that chain's explorer."
+              : undefined}
+          />
+        </>
       )}
-
-      <PriceChart
-        trades={shown} symbol={cfg.symbol} exchange={cfg.exchange}
-        resolution={resolution} overlays={overlays} visibleFrom={range.from ?? undefined}
-        overlayVisible={linesOn}
-        onOverlayToggle={(id, on) => setLinesOn((prev) => (!!prev[id] === on ? prev : { ...prev, [id]: on }))}
-      />
-
-      <TradeTape
-        trades={shown}
-        symbol="VY"
-        limit={100}
-        note={view === 'genesis'
-          ? "Amounts are in each era's own token — MFC on BNB Chain, VY on Ethereum — and link to that chain's explorer."
-          : undefined}
-      />
     </div>
   );
 }
