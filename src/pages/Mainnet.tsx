@@ -538,13 +538,8 @@ const fetchData = async () => {
 
   // projectedVyPrice() reverts VmmoNotWired() before VMMO is set, so a failure is
   // a legitimate state, not an outage — surface it as "unavailable" rather than a
-  // zero that would read as "no upside".
-  const projection = vbsoResults[4].status === 'success'
-    ? vbsoResults[4].result as unknown as {
-        vyPriceUsd: bigint; ammoUsd: bigint; deployWindowSec: bigint;
-        multipleX: bigint; livePriceUsd: bigint;
-      }
-    : null;
+  // zero that would read as "no upside". Only its revert is used: the projected
+  // numbers themselves are simulated per venue below (see "Projected VY").
   const projectionError = vbsoResults[4].status === 'success'
     ? null
     : ((vbsoResults[4].error as Error)?.message?.includes('VmmoNotWired')
@@ -803,12 +798,17 @@ const fetchData = async () => {
   });
 
   // ─── Projected VY as the book deploys ──────────────────────
-  // VBSO only reports the FULLY-deployed price. The intermediate points come from
-  // the same maths, re-derived and validated against the contract to 15 decimals:
-  // the ammo is split across venues pro-rata by depth, so `share/depth` is identical
-  // at every venue and the median collapses to one multiple. That gives
-  //     price(f) = live × (1 + f·(√multiple − 1))²
-  // for a deployed fraction f, which returns exactly `projected` at f = 1.
+  // NOT VBSO.projectedVyPrice(). That view starts from the oracle's time-averaged
+  // median, which trails the pools whenever VY is rising — on 2026-09-16 it read
+  // $0.668 against pools at $0.69–0.75, so the "now" row printed BELOW market. It
+  // also splits the ammo pro-rata by depth, which is not how VMMO spends it.
+  //
+  // What VMMO actually does (VMMOVenueLib.reserves): each asset's book buys VY in
+  // that asset's OWN venue — USDC in the UniV2 pair, WBTC/WETH/PAXG in their DAX
+  // pools. So every venue is simulated on its own from live reserves,
+  //     price = spot × (1 + usdIn / assetDepthUsd)²     (constant product)
+  // and the row shows the HIGHEST venue, named. Arbitrage pulls the venues back
+  // together afterwards, so this is the peak a deploy reaches, not where it settles.
   //
   // f(t) = 1 − e^(−t/W) is VMMO's REAL release curve. Note VBSO's own NatSpec
   // claims the book "releases linearly over that window" — it does not, and VMMO's
@@ -891,27 +891,36 @@ const fetchData = async () => {
   }
 
   const projCurve = (() => {
-    if (!projection || projection.multipleX <= 0n) return null;
-    const multiple = Number(projection.multipleX) / 1e18;
-    const live = Number(projection.livePriceUsd) / 1e18;
-    const windowDays = Number(projection.deployWindowSec) / 86_400;
-    if (multiple < 1 || live <= 0 || windowDays <= 0) return null;
-    const r = Math.sqrt(multiple) - 1;
-    const at = (f: number) => live * (1 + f * r) ** 2;
+    const windowDays = deployWindowSec / 86_400;
+    if (windowDays <= 0) return null;
+    // Depth is priced on the VAO TWAP marks (daxPools' reserveAssetUSD), the same
+    // marks the desk rows' heldUsd/readyUsd use, so `usdIn / depth` is unit-consistent.
+    const venues = deskRows.flatMap((r, i) => {
+      if (r.symbol === 'USDC') {
+        return [{ pool: 'USDC', depthUsd: Number(usdcReserve) / 1e6, vy: Number(vyReserve) / 1e18, ...r }];
+      }
+      const p = daxPools.find((d) => d.asset.toLowerCase() === tableAssets[i].address.toLowerCase());
+      return p ? [{ pool: r.symbol, depthUsd: Number(p.reserveAssetUSD.value) / 1e18, vy: Number(p.reserveVY.value) / 1e18, ...r }] : [];
+    }).filter((v) => v.depthUsd > 0 && v.vy > 0);
+    if (venues.length === 0) return null;
+
+    const highest = (usdIn: (v: typeof venues[number]) => number) =>
+      venues
+        .map((v) => ({ pool: v.pool, priceUsd: (v.depthUsd / v.vy) * (1 + usdIn(v) / v.depthUsd) ** 2 }))
+        .reduce((a, b) => (b.priceUsd > a.priceUsd ? b : a));
     const point = (label: string, days: number | null) => {
       const f = days === null ? 1 : 1 - Math.exp(-days / windowDays);
-      return { label, deployedPct: f * 100, priceUsd: at(f) };
+      return { label, deployedPct: f * 100, ...highest((v) => v.heldUsd * f) };
     };
-    // "now": the slice the drip has already released, put against today's pools.
-    // VBSO's ammo is Σ books.held × assetUsdPrice — the same marks as the desk rows —
-    // so ready ÷ ammo is the deployed fraction on the curve's own basis.
-    const ammo = Number(projection.ammoUsd) / 1e18;
+    // "now": only the slice the drip has already released, into today's pools.
+    const heldUsd = deskRows.reduce((n, r) => n + r.heldUsd, 0);
     const readyUsd = deskRows.reduce((n, r) => n + r.readyUsd, 0);
-    const fNow = ammo > 0 ? Math.min(readyUsd / ammo, 1) : 0;
+    const live = highest(() => 0);
     return {
-      livePriceUsd: live,
+      livePriceUsd: live.priceUsd,
+      livePool: live.pool,
       rows: [
-        { label: 'now', deployedPct: fNow * 100, priceUsd: at(fNow) },
+        { label: 'now', deployedPct: heldUsd > 0 ? (readyUsd / heldUsd) * 100 : 0, ...highest((v) => v.readyUsd) },
         point('7 days', 7),
         point('30 days', 30),
         point(`${windowDays.toFixed(0)} days · one window`, windowDays),
@@ -971,12 +980,16 @@ const fetchData = async () => {
     vyMaxSupply: new Amount(VY, vyMaxSupply),
     balanceSheet: sheet && {
       floors: {
-        projected: projection ? Number(projection.vyPriceUsd) / 1e18 : null,
-        projectedAmmoUsd: projection ? Number(projection.ammoUsd) / 1e18 : 0,
-        projectedWindowSec: projection ? Number(projection.deployWindowSec) : 0,
-        projectedMultiple: projection ? Number(projection.multipleX) / 1e18 : 0,
+        // The tile is the table's "fully deployed" row, so the two can never disagree.
+        projected: projCurve ? projCurve.rows[projCurve.rows.length - 1].priceUsd : null,
+        projectedPool: projCurve ? projCurve.rows[projCurve.rows.length - 1].pool : null,
+        projectedAmmoUsd: desk.totalHeldUsd,
+        projectedWindowSec: deployWindowSec,
+        projectedMultiple: projCurve
+          ? projCurve.rows[projCurve.rows.length - 1].priceUsd / projCurve.livePriceUsd
+          : 0,
         projectedDaysTo99: daysTo99,
-        projectedError: projectionError,
+        projectedError: projCurve ? null : (projectionError ?? 'pool reserves unavailable'),
         hard: Number(floorHard) / 1e18,
         borrowUsdPerVy,
         ltvBps,

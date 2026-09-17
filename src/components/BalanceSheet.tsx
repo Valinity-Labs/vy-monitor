@@ -5,8 +5,8 @@
  * right as projected · market · floor, so the market price sits between the
  * optimistic projection and the conservative floor:
  *
- *   projected  VBSO.projectedVyPrice()          — where VY prices out once VMMO
- *                                                 spends its whole book
+ *   projected  highest venue after VMMO spends  — each asset's book into its own
+ *              its whole book (Mainnet.tsx)       pool; NOT VBSO.projectedVyPrice()
  *   market     sheet.usdPerVy                   — what VY trades at now
  *   floor_hard hardEquityUsd / circulating VY   — coins actually held, net staker debt
  *
@@ -24,6 +24,8 @@
 
 export type Floors = {
   projected: number | null;
+  /** The venue `projected` is read from — the highest one after the deploy. */
+  projectedPool: string | null;
   projectedAmmoUsd: number;
   projectedWindowSec: number;
   projectedMultiple: number;
@@ -74,7 +76,7 @@ export function BackingTiles({ floors }: { floors: Floors }) {
           ) : (
             <>
               <div className="vy-tile__hint">
-                {floors.projectedMultiple.toFixed(2)}× live · once VMMO deploys its book
+                {floors.projectedPool} pool · {floors.projectedMultiple.toFixed(2)}× the highest pool now · once VMMO deploys its book
               </div>
               <div className="vy-tile__caveat">
                 ammo {fmtUsd(floors.projectedAmmoUsd, 0)}
@@ -475,7 +477,9 @@ export type DeskRow = {
 export type ProjPoint = {
   label: string;
   deployedPct: number;
+  /** Highest venue price after the deploy, and which venue it is. */
   priceUsd: number;
+  pool: string;
 };
 
 export type Desk = {
@@ -484,7 +488,8 @@ export type Desk = {
   rows: DeskRow[];
   totalHeldUsd: number;
   totalReadyUsd: number;
-  projCurve: { livePriceUsd: number; rows: ProjPoint[] } | null;
+  /** `livePriceUsd`/`livePool`: the highest venue before any deploy — the × baseline. */
+  projCurve: { livePriceUsd: number; livePool: string; rows: ProjPoint[] } | null;
   errors: string[];
 };
 
@@ -545,7 +550,9 @@ export function MarketMakerDesk({ desk }: { desk: Desk }) {
         <div className="vy-proj">
           <div className="vy-proj__title">
             Projected VY as the book deploys
-            <span className="vy-proj__tag">projection · not a forecast</span>
+            <span className="vy-proj__tag">
+              highest pool · × vs {desk.projCurve.livePool} pool now {fmtUsd(desk.projCurve.livePriceUsd)} · not a forecast
+            </span>
           </div>
 
           <table className="vy-desk__table">
@@ -554,6 +561,7 @@ export function MarketMakerDesk({ desk }: { desk: Desk }) {
                 <th />
                 <th>book deployed</th>
                 <th>projected VY</th>
+                <th>pool</th>
                 <th />
               </tr>
             </thead>
@@ -565,6 +573,7 @@ export function MarketMakerDesk({ desk }: { desk: Desk }) {
                     <td><strong>{r.label}</strong></td>
                     <td>{r.deployedPct.toFixed(1)}%</td>
                     <td>{fmtUsd(r.priceUsd)}</td>
+                    <td>{r.pool}</td>
                     <td className="vy-proj__x">{x.toFixed(2)}×</td>
                   </tr>
                 );
