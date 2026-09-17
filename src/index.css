@@ -23,6 +23,12 @@ a:hover {
   color: #535bf2;
 }
 
+/* The network name in the header: link-coloured, but not a link — the monitor is mainnet only. */
+.network-label {
+  font-weight: 500;
+  color: #646cff;
+}
+
 body {
   margin: 0;
   display: flex;

@@ -20,7 +20,7 @@ src/
 │   └── core.tsx         # Componente genérico <Value>
 ├── pages/               # Páginas principales
 │   ├── Mainnet.tsx      # Dashboard para Mainnet
-│   └── Testnet.tsx      # Dashboard para Sepolia Testnet
+│   └── Testnet.tsx      # Dashboard de Sepolia (ya no se muestra; el monitor es sólo mainnet)
 ├── models/              # Clases de modelos de datos
 │   ├── Amount.ts        # Representa cantidades monetarias
 │   ├── Currency.ts      # Información de monedas/tokens
@@ -41,7 +41,7 @@ src/
 
 ## 🔑 Características Principales
 
-- **Dual Network Support**: Soporta Mainnet y Sepolia Testnet con interfaz unificada
+- **Sólo Ethereum mainnet**: el encabezado dice "Ethereum mainnet" (sin enlace); Sepolia ya no se usa
 - **Monitoreo de Activos**: Precios spot, LTV, reservas y préstamos con valores en USD
 - **Llamadas RPC Optimizadas**: Usa `multicall` para obtener múltiples datos en una sola llamada
 
@@ -73,9 +73,7 @@ Run workflow**. Ya no se hace build y commit de `docs/` a mano: `docs/` está en
 
 | Ambiente | URL |
 |----------|-----|
-| **Mainnet** (default) | `https://valinity-labs.github.io/vy-monitor/` |
-| **Mainnet** | `https://valinity-labs.github.io/vy-monitor/?network=mainnet` |
-| **Testnet** | `https://valinity-labs.github.io/vy-monitor/?network=sepolia` |
+| **Mainnet** | `https://valinity-labs.github.io/vy-monitor/` |
 
 ### Qué hace el workflow
 
@@ -162,7 +160,8 @@ La era actual **sigue viva**, así que `vyHistory.json` es una foto del bloque e
 (`builtAtBlock`). `src/utils/liveTail.ts` se pone al día al cargar — un `getLogs` de Swap + Sync
 y peticiones JSON-RPC agrupadas — y luego consulta cada 30 segundos sólo los bloques nuevos. La
 página abre tras una pantalla de carga ("Loading data directly from the Ethereum blockchain", con
-segundos) y aparece **entera de una vez** cuando el gráfico ya está dibujado con esa puesta al día
+segundos; la V 3D de la web — portada de `valinity-landing`, Three.js cargado en segundo plano — con
+el Ethereum metálico orbitando) y aparece **entera de una vez** cuando el gráfico ya está dibujado con esa puesta al día
 y el balance respondió — o a los 20 s como máximo (`src/utils/loadLimit.ts`), mostrando lo que
 haya. Así lo primero que se ve es el presente; las velas nuevas se **añaden al gráfico abierto** (nunca se reconstruye). Si algo
 falla, se conserva lo que hay y se reintenta en la siguiente consulta.

@@ -15,7 +15,6 @@ import { indexTxFlow, bucketFlow, type FlowProgress } from '../utils/txFlow';
 import { scanFullHistory } from '../utils/logs';
 import { countHolders } from '../utils/holders';
 import { LifetimePrice } from '../components/LifetimePrice';
-import { LoadingScreen } from '../components/LoadingScreen';
 import { LOAD_LIMIT_MS } from '../utils/loadLimit';
 
 
@@ -1196,7 +1195,7 @@ async function fetchVolume(
 
 type MonitorData = Awaited<ReturnType<typeof fetchData>>;
 
-export default function Mainnet() {
+export default function Mainnet({ onLoaded }: { onLoaded?: () => void }) {
   const [data, setData] = useState<MonitorData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loadedAt, setLoadedAt] = useState<number | null>(null);
@@ -1216,6 +1215,7 @@ export default function Mainnet() {
     return () => clearTimeout(t);
   }, []);
   const loaded = (chartReady && (!!data || !!error)) || overLimit;
+  useEffect(() => { if (loaded) onLoaded?.(); }, [loaded, onLoaded]);
 
   useEffect(() => {
     let active = true;
@@ -1316,7 +1316,6 @@ export default function Mainnet() {
 
   return (
     <>
-      <LoadingScreen done={loaded} />
       <LifetimePrice onReady={onChartReady} />
       {body}
     </>
