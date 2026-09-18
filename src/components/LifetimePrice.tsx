@@ -4,7 +4,7 @@ import { LOAD_LIMIT_MS } from '../utils/loadLimit';
 import { PriceChart, type ChartOverlay } from './PriceChart';
 import { TradeTape } from './TradeTape';
 import {
-  compareTrades, dropManipulatedTransactions, loadAllTrades, type EraId, type Trade,
+  compareTrades, dropManipulatedTransactions, loadAllTrades, withEthGapBridge, type EraId, type Trade,
 } from '../utils/priceHistory';
 import { BENCHMARKS, BENCHMARK_SNAPSHOT, mergeSamples, rebased } from '../utils/benchmarks';
 
@@ -132,6 +132,8 @@ export function LifetimePrice({ onReady }: { onReady?: () => void }) {
     () => (view === 'live' ? trades.filter((t) => t.era === LIVE_ERA) : trades),
     [trades, view]
   );
+  // The chart alone also draws the bridge across the Ethereum gap; stats and tape stay real trades.
+  const charted = useMemo(() => (view === 'live' ? shown : withEthGapBridge(shown)), [shown, view]);
 
   // Where the comparison starts: VY's price at the left edge of the chosen range (the last trade
   // at or before it), or the first trade when the range reaches back past the start of the data.
@@ -257,7 +259,7 @@ export function LifetimePrice({ onReady }: { onReady?: () => void }) {
           )}
 
           <PriceChart
-            trades={shown} seriesKey={view} symbol={cfg.symbol} exchange={cfg.exchange}
+            trades={charted} seriesKey={view} symbol={cfg.symbol} exchange={cfg.exchange}
             resolution={resolution} overlays={overlays} visibleFrom={range.from ?? undefined}
             overlayVisible={linesOn} onReady={onReady}
             onOverlayToggle={(id, on) => setLinesOn((prev) => (!!prev[id] === on ? prev : { ...prev, [id]: on }))}

@@ -249,6 +249,12 @@ export function PriceChart({
           autosize: true,
           timezone: 'Etc/UTC',
           theme: light ? 'Light' : 'Dark',
+          // The library's own loading screen is a bright blue spinner by default; blend it into the
+          // pane so a (re)build never flashes it.
+          loading_screen: {
+            backgroundColor: light ? '#ffffff' : '#181818',
+            foregroundColor: light ? '#d0d0d0' : '#3a3a3a',
+          },
           disabled_features: [
             'header_symbol_search',
             'symbol_search_hot_key',

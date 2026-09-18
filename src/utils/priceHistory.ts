@@ -1,5 +1,6 @@
 import { formatUnits } from 'viem';
 import mfcHistory from '../data/mfcHistory.json';
+import ethGap from '../data/ethGap.json';
 import vyHistory from '../data/vyHistory.json';
 
 /**
@@ -77,6 +78,8 @@ export interface Trade {
   /** From the taker's side. The MFC books are buy-only; see `loadMfcTrades`. */
   side: 'buy' | 'sell';
   explorerUrl: string;
+  /** A drawn point bridging a gap with no market (see `bridgeTrades`) — chart only. */
+  synthetic?: boolean;
 }
 
 /**
@@ -169,6 +172,25 @@ export const LAUNCH_EXCLUSION = {
   detail: '281 swaps, $452,118 — pool seeded with ~8 WETH, price ran $0.22 → $7.94 → $0.347 in one day',
 };
 
+/**
+ * THE SNIPE FOUR DAYS LATER, EXCLUDED (legacy pool only).
+ *
+ * On 2024-04-07, 06:21–07:36 UTC, two sniper wallets (0x09756c9f…, 0x176c7a4c…) walked the still
+ * thin pool from $0.36 to $1.33, sold it down to $0.14 and bought it back to $0.46 — 19 swaps in
+ * 75 minutes. Either side of it the pool traded $0.29–$0.52. Like launch day these prints are
+ * real, and like launch day they are not a market: left in, that one hour is the tallest wick of
+ * the whole Ethereum era. The rest of the day (the evening trades near $0.40) stays.
+ */
+export const SNIPE_EXCLUSION = {
+  era: 'vy-legacy',
+  from: Date.UTC(2024, 3, 7, 6, 21) / 1000,
+  to: Date.UTC(2024, 3, 7, 7, 36) / 1000,
+  label: '7 Apr 2024 sniper round trip',
+  detail: '19 swaps, $0.36 → $1.33 → $0.14 → $0.46 in 75 minutes',
+};
+
+const EXCLUSIONS = [LAUNCH_EXCLUSION, SNIPE_EXCLUSION];
+
 const OUTLIER_WINDOW = 12; // prints each side of the reference median
 const OUTLIER_RATIO = 5;   // flag a print beyond 5x (or under 1/5x) its local median
 
@@ -222,8 +244,7 @@ export function loadEthTrades(): Trade[] {
     (vyHistory.eras as unknown as RawVyEra[]).map((e) => [e.id, e.quote.decimals])
   );
   const trades = (vyHistory.trades as RawVyTrade[])
-    .filter((t) => !(t.era === LAUNCH_EXCLUSION.era
-      && t.ts >= LAUNCH_EXCLUSION.from && t.ts < LAUNCH_EXCLUSION.to))
+    .filter((t) => !EXCLUSIONS.some((x) => t.era === x.era && t.ts >= x.from && t.ts < x.to))
     .map((t) => {
       const qty = Number(formatUnits(BigInt(t.vy), 18));
       const usd = Number(formatUnits(BigInt(t.quote), decimalsFor.get(t.era) ?? 18)) * t.quoteUsd;
@@ -245,6 +266,59 @@ export function loadEthTrades(): Trade[] {
     })
     .sort(compareTrades);
   return dropManipulatedTransactions(trades);
+}
+
+/**
+ * THE ETHEREUM GAP, BRIDGED — for the Since Genesis chart only.
+ *
+ * The legacy VY/WETH pool held only ETH in reserve. It last traded 20 Dec 2025 at $0.3494 and was
+ * drained while the move to the current VY/USDC pool was under way; that pool first traded
+ * 13 Apr 2026 at $0.0686. No pool traded for the 115 days in between, so there is no price to
+ * chart — left alone the chart just jumps from one token to the other.
+ *
+ * The bridge is a drawn path, not trades: it follows ETH/USD through those days (Chainlink, from
+ * src/data/ethGap.json) — the asset the old token's reserve was made of — plus an even
+ * log-linear drift, so it starts exactly on the legacy pool's last price and lands exactly on the
+ * current pool's first. ETH fell 25% over the gap; the drift carries the rest of the fall.
+ *
+ * Each point is a zero-volume `synthetic` print. They go to the chart only — never the tape, the
+ * stats or any volume.
+ */
+export function bridgeTrades(lastLegacy: Trade, firstCurrent: Trade): Trade[] {
+  const samples = (ethGap.samples as { ts: number; eth: number }[])
+    .filter((s) => s.ts > lastLegacy.ts && s.ts < firstCurrent.ts);
+  if (!samples.length) return [];
+  const all = ethGap.samples as { ts: number; eth: number }[];
+  const e0 = all[0].eth;
+  const e1 = all[all.length - 1].eth;
+  const t0 = lastLegacy.ts;
+  const span = firstCurrent.ts - t0;
+  const drift = Math.log(firstCurrent.price / lastLegacy.price) - Math.log(e1 / e0);
+  return samples.map((s) => ({
+    ts: s.ts,
+    price: lastLegacy.price * (s.eth / e0) * Math.exp(drift * ((s.ts - t0) / span)),
+    qty: 0,
+    usd: 0,
+    address: '',
+    txHash: '',
+    key: `bridge:${s.ts}`,
+    era: 'vy-legacy' as const,
+    side: 'buy' as const,
+    explorerUrl: '',
+    synthetic: true,
+  }));
+}
+
+/** The Since Genesis series with the Ethereum gap bridged (see `bridgeTrades`). */
+export function withEthGapBridge(trades: Trade[]): Trade[] {
+  let last: Trade | undefined;
+  let first: Trade | undefined;
+  for (const t of trades) {
+    if (t.era === 'vy-legacy') last = t;
+    else if (t.era === 'vy-current' && !first) first = t;
+  }
+  if (!last || !first) return trades;
+  return [...trades, ...bridgeTrades(last, first)].sort(compareTrades);
 }
 
 /** Every era, oldest print first. */
