@@ -6,6 +6,15 @@
   <link rel="icon" type="image/svg+xml" href="/vy.svg" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Valinity Monitor</title>
+  <script>
+    // Theme before first paint: the viewer's pick, else the system's (see src/utils/theme.ts).
+    (function () {
+      var t = null;
+      try { t = localStorage.getItem('vy-theme'); } catch (e) {}
+      if (t !== 'light' && t !== 'dark') t = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+      document.documentElement.dataset.theme = t;
+    })();
+  </script>
 </head>
 
 <body>

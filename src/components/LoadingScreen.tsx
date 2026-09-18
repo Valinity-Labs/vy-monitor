@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import ethMetal from '../assets/eth-metal.webp';
-import vPoster from '../assets/v-poster.webp';
+// Inlined into the bundle, not fetched: as separate files they arrived a moment after the cover
+// painted, so it first showed bare blocks and text — the old loader — before Ethereum popped in.
+import ethMetal from '../assets/eth-metal.webp?inline';
+import vPoster from '../assets/v-poster.webp?inline';
 
 /**
  * The full-screen cover the page opens behind. Everything mounts and loads underneath it, so when
@@ -112,7 +114,7 @@ export function LoadingScreen({ done = false }: { done?: boolean }) {
           <img ref={ethRef} className="vy-loader__eth" src={ethMetal} alt="" draggable={false} />
           <div ref={orbiterRef} className="vy-loader__orbiter">
             <canvas ref={canvasRef} className={`vy-loader__v${webgl ? ' vy-loader__v--on' : ''}`} />
-            {!webgl && <img className="vy-loader__v-still" src={vPoster} alt="" draggable={false} />}
+            <img className={`vy-loader__v-still${webgl ? ' vy-loader__v-still--off' : ''}`} src={vPoster} alt="" draggable={false} />
           </div>
         </div>
         <div className="vy-loader__blocks" aria-hidden="true">

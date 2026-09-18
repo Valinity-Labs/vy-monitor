@@ -5,9 +5,34 @@
 header {
   display: flex;
   justify-content: center;
+  align-items: center;
   padding: 0.5rem;
   margin-bottom: 0.5rem;
   border-bottom: 1px solid #222222;
+}
+
+/* Light/dark switch, just left of the title. */
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  margin-right: 0.6rem;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: transparent;
+  color: inherit;
+}
+
+.theme-toggle svg { width: 1rem; height: 1rem; }
+.theme-toggle:focus:not(:focus-visible) { outline: none; }
+.theme-toggle:hover { border-color: #646cff; }
+
+:where(:root[data-theme="light"]) .theme-toggle {
+  border-color: rgba(0, 0, 0, 0.18);
+  background: transparent;
 }
 
 .monitor {
@@ -52,22 +77,18 @@ th {
   text-align: left;
 }
 
-@media (prefers-color-scheme: light) {
-  header {
-    border-bottom-color: #ccc;
-  }
-
-  .box {
-    background: #eee;
-  }
-
-  .box--error {
-    background: #fff0f0;
-  }
-
-  .error-item {
-    color: #c00;
-  }
+/* Light theme */
+:where(:root[data-theme="light"]) header {
+  border-bottom-color: #ccc;
+}
+:where(:root[data-theme="light"]) .box {
+  background: #eee;
+}
+:where(:root[data-theme="light"]) .box--error {
+  background: #fff0f0;
+}
+:where(:root[data-theme="light"]) .error-item {
+  color: #c00;
 }
 
 .box--error {
@@ -138,14 +159,12 @@ th {
   color: #888;
 }
 
-@media (prefers-color-scheme: light) {
-  .box--warning {
-    background: #fff8e6;
-  }
-
-  .warning-item {
-    color: #b37400;
-  }
+/* Light theme */
+:where(:root[data-theme="light"]) .box--warning {
+  background: #fff8e6;
+}
+:where(:root[data-theme="light"]) .warning-item {
+  color: #b37400;
 }
 
 /* ── VBSO balance sheet ─────────────────────────────────────
@@ -170,18 +189,17 @@ th {
   --vy-bench-xau: #FFD60A;
 }
 
-@media (prefers-color-scheme: light) {
-  .monitor,
-  .vy-price {
-    --vy-series-1: #2a78d6;
-    --vy-series-2: #eb6834;
-    --vy-ink-1: rgba(0, 0, 0, 0.88);
-    --vy-ink-2: rgba(0, 0, 0, 0.6);
-    --vy-ink-3: rgba(0, 0, 0, 0.42);
-    --vy-rule: rgba(0, 0, 0, 0.14);
-    --vy-bench-eth: #737373;
-    --vy-bench-xau: #D4A106;
-  }
+/* Light theme */
+:where(:root[data-theme="light"]) .monitor,
+:where(:root[data-theme="light"]) .vy-price {
+  --vy-series-1: #2a78d6;
+  --vy-series-2: #eb6834;
+  --vy-ink-1: rgba(0, 0, 0, 0.88);
+  --vy-ink-2: rgba(0, 0, 0, 0.6);
+  --vy-ink-3: rgba(0, 0, 0, 0.42);
+  --vy-rule: rgba(0, 0, 0, 0.14);
+  --vy-bench-eth: #737373;
+  --vy-bench-xau: #D4A106;
 }
 
 .vy-tiles {
@@ -594,7 +612,6 @@ th {
   min-width: 9rem;
 }
 
-
 .vy-rung__assets {
   margin-top: 0.5rem;
   padding-top: 0.45rem;
@@ -926,7 +943,8 @@ th {
 
 .vy-loader__v { opacity: 0; transition: opacity 0.3s ease; }
 .vy-loader__v--on { opacity: 1; }
-.vy-loader__v-still { padding: 12%; box-sizing: border-box; }
+.vy-loader__v-still { padding: 12%; box-sizing: border-box; transition: opacity 0.3s ease; }
+.vy-loader__v-still--off { opacity: 0; }
 
 .vy-loader__blocks { display: flex; gap: 0.4rem; }
 
@@ -969,12 +987,11 @@ th {
   40% { opacity: 1; transform: scale(1); }
 }
 
-@media (prefers-color-scheme: light) {
-  .vy-loader {
-    --vy-loader-bg: #fff;
-    --vy-loader-ink: rgba(0, 0, 0, 0.88);
-    --vy-loader-dim: rgba(0, 0, 0, 0.45);
-  }
+/* Light theme */
+:where(:root[data-theme="light"]) .vy-loader {
+  --vy-loader-bg: #fff;
+  --vy-loader-ink: rgba(0, 0, 0, 0.88);
+  --vy-loader-dim: rgba(0, 0, 0, 0.45);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1104,11 +1121,10 @@ th {
   padding: 1rem 0;
 }
 
-@media (prefers-color-scheme: light) {
-  .vy-tape__table th { background: #ffffff; }
-  .vy-tape__table tr:hover td { background: rgba(0, 0, 0, 0.03); }
-  .vy-tape__side--buy { color: #1a7f37; }
-}
+/* Light theme */
+:where(:root[data-theme="light"]) .vy-tape__table th { background: #ffffff; }
+:where(:root[data-theme="light"]) .vy-tape__table tr:hover td { background: rgba(0, 0, 0, 0.03); }
+:where(:root[data-theme="light"]) .vy-tape__side--buy { color: #1a7f37; }
 
 /* Per-row token symbol in the tape's amount column — the eras use different tokens. */
 .vy-tape__sym {

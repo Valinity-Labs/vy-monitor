@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { barCloseTime, openingPriceBand, type Trade } from '../utils/priceHistory';
 import { createStaticDatafeed } from '../utils/staticDatafeed';
+import { useTheme } from '../utils/theme';
 
 /**
  * VALINITY LIFETIME PRICE — TradingView Advanced Charts.
@@ -144,9 +145,6 @@ function overlayIndicator(
   };
 }
 
-const prefersLight = () =>
-  typeof window !== 'undefined' && window.matchMedia?.('(prefers-color-scheme: light)').matches;
-
 export function PriceChart({
   trades, seriesKey, symbol, exchange, resolution = DEFAULT_RES, overlays = NO_OVERLAYS, visibleFrom,
   overlayVisible = NO_VISIBLE, onOverlayToggle, onReady, height = 460,
@@ -171,7 +169,8 @@ export function PriceChart({
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
-  const [light, setLight] = useState(prefersLight);
+  // The widget takes its theme at construction time, so a theme flip rebuilds it.
+  const light = useTheme() === 'light';
 
   // The open widget reads the LATEST trades and overlays through these refs, so data that changes
   // while the chart is on screen reaches it without a rebuild.
@@ -210,15 +209,6 @@ export function PriceChart({
       }
     }
   }, [overlayVisible, onOverlayToggle, onReady]);
-
-  // Rebuild on theme flip — the widget takes its theme at construction time.
-  useEffect(() => {
-    const mq = window.matchMedia?.('(prefers-color-scheme: light)');
-    if (!mq) return;
-    const onChange = () => setLight(mq.matches);
-    mq.addEventListener('change', onChange);
-    return () => mq.removeEventListener('change', onChange);
-  }, []);
 
   // Which overlays exist decides the studies to create; their data can change without a rebuild.
   const overlayKey = overlays.map((o) => o.id).join(',');
@@ -266,7 +256,7 @@ export function PriceChart({
             'go_to_date',
             // The library otherwise saves chart settings in localStorage and lets them override
             // `overrides` on the next visit — so a viewer who once saw the dark theme keeps a dark
-            // pane under a light page after switching their system theme. Always start clean.
+            // pane under a light page after switching theme. Always start clean.
             'use_localstorage_for_settings',
           ],
           enabled_features: ['hide_left_toolbar_by_default'],

@@ -1,6 +1,7 @@
 import { lazy, Suspense, useCallback, useState } from 'react';
 import './App.css';
 import { LoadingScreen } from './components/LoadingScreen';
+import { ThemeToggle } from './components/ThemeToggle';
 
 const Mainnet = lazy(() => import('./pages/Mainnet'));
 
@@ -14,6 +15,7 @@ function App() {
     <>
       <LoadingScreen done={loaded} />
       <header>
+        <ThemeToggle />
         Valinity Monitor&nbsp;
         <span className="network-label">[Ethereum mainnet]</span>
       </header>
