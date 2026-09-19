@@ -361,6 +361,11 @@ const fetchData = async () => {
     vdaoToken: Address; vdaoSymbol: string; reserveVdao: Amount<bigint>;
     asset: Address; assetSymbol: string; reserveAsset: Amount<bigint>;
     reserveAssetUSD: Amount<bigint> | null;
+    /**
+     * The VDAO token's price in this pool: asset leg in USD ÷ VDAO leg. Pre-formatted to six
+     * decimals — renderValues gives every USD amount three, which reads a one-cent token as $0.010.
+     */
+    vdaoPriceUSD: string;
   };
   const vdaoDaxPools: VdaoPool[] = [];
   if (vdaoNumPools > 0n) {
@@ -401,6 +406,7 @@ const fetchData = async () => {
           : 0n);
       }
 
+      const vdaoUnit = 10n ** BigInt(vdaoInfo.currency.decimals ?? 18);
       vdaoDaxPools.push({
         vdaoToken,
         vdaoSymbol: vdaoInfo.symbol,
@@ -409,6 +415,10 @@ const fetchData = async () => {
         assetSymbol: assetInfo.symbol,
         reserveAsset: new Amount(assetInfo.currency, reserveAsset),
         reserveAssetUSD,
+        vdaoPriceUSD: reserveAssetUSD && reserveVdao > 0n
+          ? (Number(((reserveAssetUSD.value as bigint) * vdaoUnit) / reserveVdao) / 1e18)
+            .toLocaleString('en', { minimumFractionDigits: 6, maximumFractionDigits: 6 }) + ' USD'
+          : tr('no USD price', 'sin precio en USD'),
       });
     }
   }
@@ -1562,8 +1572,7 @@ function Content({ data, volume, volProgress, holders }: { data: MonitorData; vo
                   <div key={i} className="box" style={{ marginBottom: 0 }}>
                     <h4>{pool.vdaoSymbol}/{pool.assetSymbol}</h4>
                     {renderValues({
-                      [tr(`${pool.vdaoSymbol} Token`, `Token ${pool.vdaoSymbol}`)]: pool.vdaoToken,
-                      [tr(`${pool.assetSymbol} Token`, `Token ${pool.assetSymbol}`)]: pool.asset,
+                      [tr(`${pool.vdaoSymbol} Price (USD)`, `Precio de ${pool.vdaoSymbol} (USD)`)]: pool.vdaoPriceUSD,
                       [tr(`${pool.vdaoSymbol} Reserve`, `Reserva de ${pool.vdaoSymbol}`)]: pool.reserveVdao,
                       [tr(`${pool.assetSymbol} Reserve`, `Reserva de ${pool.assetSymbol}`)]: pool.reserveAsset,
                       ...(pool.reserveAssetUSD
