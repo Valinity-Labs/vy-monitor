@@ -1070,43 +1070,130 @@ th {
 }
 
 .vy-tape__table td {
-  padding: 0.28rem 0.5rem 0.28rem 0;
+  padding: 0.38rem 0.5rem 0.38rem 0;
   border-bottom: 1px solid var(--vy-rule);
   white-space: nowrap;
+  background: transparent;
 }
 
-.vy-tape__table tr:hover td { background: rgba(255, 255, 255, 0.03); }
+.vy-tape__table th:first-child,
+.vy-tape__table td:first-child { padding-left: 0.5rem; }
+
+/* Every fill has a faint full-row side colour. The stronger section is sized from the visible
+   trade's USD value (square-root scaled in TradeTape so one outlier does not erase small fills). */
+.vy-tape__row {
+  --vy-tape-tint: rgba(127, 127, 127, 0.04);
+  --vy-tape-bar: rgba(127, 127, 127, 0.1);
+  background:
+    linear-gradient(
+      90deg,
+      var(--vy-tape-bar) 0,
+      var(--vy-tape-bar) var(--vy-tape-fill),
+      transparent var(--vy-tape-fill),
+      transparent 100%
+    ),
+    var(--vy-tape-tint);
+  transition: filter 120ms ease;
+}
+
+.vy-tape__row--buy {
+  --vy-tape-tint: rgba(34, 197, 94, 0.055);
+  --vy-tape-bar: rgba(34, 197, 94, 0.16);
+}
+
+.vy-tape__row--sell {
+  --vy-tape-tint: rgba(239, 68, 68, 0.055);
+  --vy-tape-bar: rgba(239, 68, 68, 0.16);
+}
+
+.vy-tape__row:hover { filter: brightness(1.14) saturate(1.08); }
+.vy-tape__row:focus-within { outline: 1px solid color-mix(in srgb, var(--vy-series-1) 55%, transparent); }
 
 .vy-tape__num {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
 
+/* The general table-header rule is more specific than .vy-tape__num. Match that specificity so
+   numeric headings sit directly above their right-aligned values. */
+.vy-tape__table th.vy-tape__num { text-align: right; }
+
 .vy-tape__time { color: var(--vy-ink-2); }
-.vy-tape__price { color: var(--vy-ink-1); }
 
-.vy-tape__side {
-  font-size: 0.6rem;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
+.vy-tape__c-amount,
+.vy-tape__c-value { font-weight: 500; }
 
-/* Buy/sell are the one place colour carries meaning here, so they get the two
-   series hues rather than a red/green pair that reads as error/success. */
-.vy-tape__side--buy { color: #3fb950; }
-.vy-tape__side--sell { color: var(--vy-series-2); }
+.vy-tape__row--buy .vy-tape__c-amount,
+.vy-tape__row--buy .vy-tape__c-value { color: #62d98a; }
+
+.vy-tape__row--sell .vy-tape__c-amount,
+.vy-tape__row--sell .vy-tape__c-value { color: #ff7b72; }
 
 .vy-tape__addr,
-.vy-tape__tx {
+.vy-tape__action {
   color: var(--vy-series-1);
   text-decoration: none;
   font-variant-numeric: tabular-nums;
 }
 
 .vy-tape__addr:hover,
-.vy-tape__tx:hover { text-decoration: underline; }
+.vy-tape__action:hover { text-decoration: underline; }
 
-.vy-tape__tx { font-size: 0.85rem; }
+.vy-tape__wallet {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.vy-tape__tier {
+  display: inline-flex;
+  width: 1.25rem;
+  justify-content: center;
+  font-size: 0.88rem;
+  line-height: 1;
+  filter: saturate(0.88);
+  cursor: help;
+}
+
+.vy-tape__tier:focus-visible {
+  outline: 1px solid var(--vy-series-1);
+  outline-offset: 2px;
+  border-radius: 0.18rem;
+}
+
+.vy-tape__action-head,
+.vy-tape__c-action { text-align: right !important; }
+
+/* On full-width layouts the wallet gets a deliberate middle lane, instead of visually attaching
+   itself to USD value. Apply the same centered gutter to the heading and every wallet below it. */
+@media (min-width: 40.001rem) {
+  .vy-tape__table th.vy-tape__wallet-head,
+  .vy-tape__table td.vy-tape__c-addr {
+    min-width: 10rem;
+    padding-left: clamp(1.25rem, 3vw, 3.5rem);
+    padding-right: clamp(1.25rem, 3vw, 3.5rem);
+    text-align: center;
+  }
+}
+
+.vy-tape__action {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.22rem;
+  font-size: 0.68rem;
+}
+
+.vy-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
 
 .vy-tape__note {
   font-size: 0.66rem;
@@ -1123,8 +1210,18 @@ th {
 
 /* Light theme */
 :where(:root[data-theme="light"]) .vy-tape__table th { background: #ffffff; }
-:where(:root[data-theme="light"]) .vy-tape__table tr:hover td { background: rgba(0, 0, 0, 0.03); }
-:where(:root[data-theme="light"]) .vy-tape__side--buy { color: #1a7f37; }
+:where(:root[data-theme="light"]) .vy-tape__row--buy {
+  --vy-tape-tint: rgba(22, 163, 74, 0.07);
+  --vy-tape-bar: rgba(22, 163, 74, 0.15);
+}
+:where(:root[data-theme="light"]) .vy-tape__row--sell {
+  --vy-tape-tint: rgba(220, 38, 38, 0.065);
+  --vy-tape-bar: rgba(220, 38, 38, 0.14);
+}
+:where(:root[data-theme="light"]) .vy-tape__row--buy .vy-tape__c-amount,
+:where(:root[data-theme="light"]) .vy-tape__row--buy .vy-tape__c-value { color: #157f3b; }
+:where(:root[data-theme="light"]) .vy-tape__row--sell .vy-tape__c-amount,
+:where(:root[data-theme="light"]) .vy-tape__row--sell .vy-tape__c-value { color: #c62828; }
 
 /* Per-row token symbol in the tape's amount column — the eras use different tokens. */
 .vy-tape__sym {
@@ -1156,29 +1253,42 @@ th {
   .box td + td,
   .box th + th { padding-left: 0.6rem; }
   .vy-pool-grid { grid-template-columns: minmax(0, 1fr); }
+  .vy-tape__head { align-items: flex-start; }
+  .vy-tape__count {
+    max-width: 58%;
+    font-size: 0.6rem;
+    text-align: right;
+  }
 
-  /* Tape: each trade on two lines — time · side · price, then wallet · tx · amount · value. */
+  /* Tape: each trade on two lines — relative age · amount · value, then wallet · action. */
   .vy-tape__table thead { display: none; }
   .vy-tape__table,
   .vy-tape__table tbody { display: block; }
   .vy-tape__table tr {
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto auto;
+    grid-template-columns: auto minmax(0, 1fr) auto;
     grid-template-areas:
-      "time time side price"
-      "addr tx amount value";
+      "time amount value"
+      "addr action action";
     column-gap: 0.6rem;
-    row-gap: 0.15rem;
-    padding: 0.45rem 0;
+    row-gap: 0.22rem;
+    padding: 0.52rem 0.45rem;
     border-bottom: 1px solid var(--vy-rule);
   }
   .vy-tape__table td { padding: 0; border: 0; }
   .vy-tape__time { grid-area: time; }
-  .vy-tape__c-side { grid-area: side; text-align: right; }
-  .vy-tape__price { grid-area: price; }
-  .vy-tape__price::before { content: '@ '; color: var(--vy-ink-3); }
   .vy-tape__c-addr { grid-area: addr; }
-  .vy-tape__c-tx { grid-area: tx; }
+  .vy-tape__c-action {
+    grid-area: action;
+    min-width: 0;
+    overflow: hidden;
+  }
+  .vy-tape__action {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
   .vy-tape__c-amount { grid-area: amount; }
   .vy-tape__c-value { grid-area: value; }
 }
