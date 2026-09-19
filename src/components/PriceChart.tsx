@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { barCloseTime, openingPriceBand, type Trade } from '../utils/priceHistory';
 import { createStaticDatafeed } from '../utils/staticDatafeed';
 import { useTheme } from '../utils/theme';
+import { LANG, tr } from '../utils/i18n';
 
 /**
  * VALINITY LIFETIME PRICE — TradingView Advanced Charts.
@@ -245,7 +246,9 @@ export function PriceChart({
           datafeed: feed,
           symbol,
           interval: resolution,
-          locale: 'en',
+          locale: LANG,
+          // Spanish would switch the chart to decimal commas; the rest of the page keeps en-US numbers.
+          numeric_formatting: { decimal_sign: '.', grouping_separator: ',' },
           autosize: true,
           timezone: 'Etc/UTC',
           theme: light ? 'Light' : 'Dark',
@@ -370,7 +373,7 @@ export function PriceChart({
   if (error) {
     return (
       <div className="box box--warning">
-        <strong>Chart unavailable.</strong> {error}
+        <strong>{tr('Chart unavailable.', 'Gráfico no disponible.')}</strong> {error}
         <div style={{ marginTop: '0.4rem', fontSize: '0.72rem' }}>
           The TradingView Advanced Charts bundle must be present at <code>public/charting_library/</code>.
         </div>

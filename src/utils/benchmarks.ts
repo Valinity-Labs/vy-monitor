@@ -1,6 +1,7 @@
 import { parseAbi, type Address, type ContractFunctionParameters, type PublicClient } from 'viem';
 import { mainnet } from 'viem/chains';
 import benchmarks from '../data/benchmarks.json';
+import { tr } from './i18n';
 
 /**
  * RESERVE-ASSET BENCHMARKS — Bitcoin, Ether and gold, drawn over the current pool's candles as
@@ -25,7 +26,7 @@ interface Feed { key: BenchmarkKey; address: string; decimals: number }
 export const BENCHMARKS: { key: BenchmarkKey; label: string; color: string; colorLight: string }[] = [
   { key: 'btc', label: 'BTC', color: '#F7931A', colorLight: '#F7931A' },
   { key: 'eth', label: 'ETH', color: '#A3A3A3', colorLight: '#737373' },
-  { key: 'xau', label: 'Gold', color: '#FFD60A', colorLight: '#D4A106' },
+  { key: 'xau', label: tr('Gold', 'Oro'), color: '#FFD60A', colorLight: '#D4A106' },
 ];
 
 const FEEDS = benchmarks.feeds as Feed[];

@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 // painted, so it first showed bare blocks and text — the old loader — before Ethereum popped in.
 import ethMetal from '../assets/eth-metal.webp?inline';
 import vPoster from '../assets/v-poster.webp?inline';
+import { tr } from '../utils/i18n';
 
 /**
  * The full-screen cover the page opens behind. Everything mounts and loads underneath it, so when
@@ -120,10 +121,10 @@ export function LoadingScreen({ done = false }: { done?: boolean }) {
         <div className="vy-loader__blocks" aria-hidden="true">
           {Array.from({ length: 7 }, (_, i) => <span key={i} style={{ animationDelay: `${i * 0.14}s` }} />)}
         </div>
-        <div className="vy-loader__title">Loading data directly from the Ethereum blockchain</div>
+        <div className="vy-loader__title">{tr('Loading data directly from the Ethereum blockchain', 'Cargando datos directamente desde la blockchain de Ethereum')}</div>
         <div className="vy-loader__clock">{seconds.toFixed(1)}s</div>
         {seconds >= 12 && (
-          <div className="vy-loader__slow">The blockchain connection is slower than usual — still working on it.</div>
+          <div className="vy-loader__slow">{tr('The blockchain connection is slower than usual — still working on it.', 'La conexión con la blockchain está más lenta de lo normal — seguimos trabajando en ello.')}</div>
         )}
       </div>
     </div>

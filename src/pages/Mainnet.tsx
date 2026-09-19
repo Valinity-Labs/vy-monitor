@@ -16,6 +16,7 @@ import { scanFullHistory } from '../utils/logs';
 import { countHolders } from '../utils/holders';
 import { LifetimePrice } from '../components/LifetimePrice';
 import { LOAD_LIMIT_MS } from '../utils/loadLimit';
+import { tr } from '../utils/i18n';
 
 
 /**
@@ -174,7 +175,7 @@ const fetchData = async () => {
     vyReserve = vyIsToken0 ? reserve0 : reserve1;
     usdcReserve = vyIsToken0 ? reserve1 : reserve0;
   } else {
-    overviewWarnings.push(`getReserves: Pool pair not available`);
+    overviewWarnings.push(`getReserves: ${tr('Pool pair not available', 'par del pool no disponible')}`);
   }
 
   const tokenHolders = [
@@ -308,7 +309,7 @@ const fetchData = async () => {
           reserveAsset: new Amount(currency!, reserveAsset),
           reserveAssetUSD,
           usdPriced: !!known,
-          vyPriceUSD: 'no USD price',
+          vyPriceUSD: tr('no USD price', 'sin precio en USD'),
         });
       } else {
         daxErrors.push(`getPoolReserves(${i}): ${(r.error as Error).message ?? 'reverted'}`);
@@ -477,11 +478,17 @@ const fetchData = async () => {
       allowFailure: true
     }),
     buybackTransfers(buybackAddress).catch((e: Error) => {
-      overviewErrors.push(`buyback transfers (VBO→VYT): ${e.message ?? 'scan failed'}`);
+      overviewErrors.push(tr(
+        `buyback transfers (VBO→VYT): ${e.message ?? 'scan failed'}`,
+        `transferencias de recompra (VBO→VYT): ${e.message ?? 'escaneo fallido'}`,
+      ));
       return [];
     }),
     buybackTransfers(oldBuybackAddress).catch((e: Error) => {
-      overviewErrors.push(`buyback transfers (old VBO→VYT): ${e.message ?? 'scan failed'}`);
+      overviewErrors.push(tr(
+        `buyback transfers (old VBO→VYT): ${e.message ?? 'scan failed'}`,
+        `transferencias de recompra (VBO antiguo→VYT): ${e.message ?? 'escaneo fallido'}`,
+      ));
       return [];
     }),
   ]);
@@ -545,10 +552,17 @@ const fetchData = async () => {
         // value the book at a stale mark. It clears itself on the next write.
         vbsoErrors.push(
           msg.includes('PriceUnavailable')
-            ? 'Balance sheet unavailable — VBSO.sheet() reverted PriceUnavailable(). An asset '
-              + 'oracle is fail-closed: a Uniswap V3 TWAP aged past the VAO guard, so the sheet '
-              + 'refuses to value the book at a stale mark. This clears itself as soon as the '
-              + 'pool writes a new observation. Run `node oracle-watch.mjs --once` for the pool.'
+            ? tr(
+              'Balance sheet unavailable — VBSO.sheet() reverted PriceUnavailable(). An asset '
+                + 'oracle is fail-closed: a Uniswap V3 TWAP aged past the VAO guard, so the sheet '
+                + 'refuses to value the book at a stale mark. This clears itself as soon as the '
+                + 'pool writes a new observation. Run `node oracle-watch.mjs --once` for the pool.',
+              'Balance General no disponible — VBSO.sheet() revirtió con PriceUnavailable(). Un '
+                + 'oráculo de activo se cerró por seguridad: un TWAP de Uniswap V3 superó la antigüedad '
+                + 'que permite la guarda del VAO, así que el balance se niega a valorar el libro a un '
+                + 'precio desactualizado. Se resuelve solo en cuanto el pool escriba una nueva '
+                + 'observación. Ejecuta `node oracle-watch.mjs --once` para el pool.',
+            )
             : `sheet: ${msg}`
         );
         return null;
@@ -583,8 +597,8 @@ const fetchData = async () => {
   const projectionError = vbsoResults[4].status === 'success'
     ? null
     : ((vbsoResults[4].error as Error)?.message?.includes('VmmoNotWired')
-        ? 'VMMO not wired yet'
-        : 'projection unavailable');
+        ? tr('VMMO not wired yet', 'VMMO aún no conectado')
+        : tr('projection unavailable', 'proyección no disponible'));
 
   // ─── Loan terms (VLO) ──────────────────────────────────────
   // getLTV(asset) is asset-units-per-VY already haircut by marketLtvBps and
@@ -721,7 +735,10 @@ const fetchData = async () => {
     if (priceWad === 0n) {
       // Stale/reverting TWAP (PAXG's thin pool does this) — count nothing rather
       // than count it at zero silently.
-      overviewWarnings.push(`VMMO ${a.symbol}: no spot price, excluded from CLAV`);
+      overviewWarnings.push(tr(
+        `VMMO ${a.symbol}: no spot price, excluded from CLAV`,
+        `VMMO ${a.symbol}: sin precio spot, excluido del CLAV`,
+      ));
       return;
     }
     vmmoInventoryUSD += (bal * 10n ** BigInt(18 - a.currency.decimals) * priceWad) / 10n ** 18n;
@@ -923,10 +940,12 @@ const fetchData = async () => {
   if (vyMultBps > 0 && vyLiveQuoteBps > 0 && sheet) {
     const eraWould = Math.floor((Number(sheet.eraMaxBps) * vyMultBps) / 10_000);
     if (Math.abs(eraWould - vyLiveQuoteBps) > 1) {
-      vbsoErrors.push(
-        `VY pays ${(vyLiveQuoteBps / 100).toFixed(2)}% (VYO) where the era model caps it at `
-        + `${(eraWould / 100).toFixed(2)}% — the VYO does not read the era ratchet.`
-      );
+      const paid = (vyLiveQuoteBps / 100).toFixed(2);
+      const cap = (eraWould / 100).toFixed(2);
+      vbsoErrors.push(tr(
+        `VY pays ${paid}% (VYO) where the era model caps it at ${cap}% — the VYO does not read the era ratchet.`,
+        `VY paga ${paid}% (VYO) donde el modelo de eras lo limita a ${cap}% — el VYO no lee el trinquete de eras.`,
+      ));
     }
   }
 
@@ -960,11 +979,11 @@ const fetchData = async () => {
       livePriceUsd: live.priceUsd,
       livePool: live.pool,
       rows: [
-        { label: 'now', deployedPct: heldUsd > 0 ? (readyUsd / heldUsd) * 100 : 0, ...highest((v) => v.readyUsd) },
-        point('7 days', 7),
-        point('30 days', 30),
-        point(`${windowDays.toFixed(0)} days · one window`, windowDays),
-        point('fully deployed', null),
+        { label: tr('now', 'ahora'), deployedPct: heldUsd > 0 ? (readyUsd / heldUsd) * 100 : 0, ...highest((v) => v.readyUsd) },
+        point(tr('7 days', '7 días'), 7),
+        point(tr('30 days', '30 días'), 30),
+        point(tr(`${windowDays.toFixed(0)} days · one window`, `${windowDays.toFixed(0)} días · una ventana`), windowDays),
+        point(tr('fully deployed', 'totalmente desplegado'), null),
       ],
     };
   })();
@@ -1029,7 +1048,7 @@ const fetchData = async () => {
           ? projCurve.rows[projCurve.rows.length - 1].priceUsd / projCurve.livePriceUsd
           : 0,
         projectedDaysTo99: daysTo99,
-        projectedError: projCurve ? null : (projectionError ?? 'pool reserves unavailable'),
+        projectedError: projCurve ? null : (projectionError ?? tr('pool reserves unavailable', 'reservas del pool no disponibles')),
         hard: Number(floorHard) / 1e18,
         borrowUsdPerVy,
         ltvBps,
@@ -1049,15 +1068,16 @@ const fetchData = async () => {
         mcapUsd: Number(sheet.mcapUsd) / 1e18,
         vyOracle: vyOracleAddress,
       },
+      // Keys are display labels only (renderValues); nothing looks them up.
       rows: {
-        'Hard assets': new Amount(USD, sheet.hardAssetsUsd),
-        'Covered loans': new Amount(USD, sheet.coveredLoansUsd),
-        'Loans at face': new Amount(USD, sheet.loansFaceUsd),
-        'Staker debt': new Amount(USD, sheet.stakerDebtUsd),
-        'Equity': new Amount(USD, sheet.equityUsd),
-        'Hard equity': new Amount(USD, hardEquityUsd),
-        'Fuel': new Amount(USD, sheet.fuelUsd),
-        'Demand': new Amount(USD, sheet.demandUsd),
+        [tr('Hard assets', 'Activos Duros')]: new Amount(USD, sheet.hardAssetsUsd),
+        [tr('Covered loans', 'Préstamos Cubiertos')]: new Amount(USD, sheet.coveredLoansUsd),
+        [tr('Loans at face', 'Préstamos a Valor Nominal')]: new Amount(USD, sheet.loansFaceUsd),
+        [tr('Staker debt', 'Deuda con Stakers')]: new Amount(USD, sheet.stakerDebtUsd),
+        [tr('Equity', 'Patrimonio')]: new Amount(USD, sheet.equityUsd),
+        [tr('Hard equity', 'Patrimonio Duro')]: new Amount(USD, hardEquityUsd),
+        [tr('Fuel', 'Combustible')]: new Amount(USD, sheet.fuelUsd),
+        [tr('Demand', 'Demanda')]: new Amount(USD, sheet.demandUsd),
       },
       assetTable,
       // Marks for the volume panel, so it values flow with the same oracle the
@@ -1094,20 +1114,30 @@ const fetchData = async () => {
     // one line per leg. Splitting DAX and the pair across two rows each made the
     // reader add them up to get the number that actually matters.
     clav: [
-      { venue: 'Valinity Arbitrage Exchange (DAX)', side: 'both sides', value: new Amount(USD, daxAssetSideUSD + daxVySideUSD) },
-      { venue: 'VY/USDC (Uniswap)', side: 'both sides', value: new Amount(USD, uniUsdcSideUSD + uniVySideUSD) },
-      { venue: 'VDAO DAX', side: 'both sides (VGC leg imputed)', value: new Amount(USD, vdaoBothSidesUSD) },
-      { venue: 'VMMO (market maker)', side: vmmoHeld.length ? `inventory — ${vmmoHeld.join(' + ')}` : 'inventory (empty)', value: new Amount(USD, vmmoInventoryUSD) },
-      { venue: 'CLAV total', side: '', value: new Amount(USD, liquidAssetsUSD), total: true },
+      { venue: 'Valinity Arbitrage Exchange (DAX)', side: tr('both sides', 'ambos lados'), value: new Amount(USD, daxAssetSideUSD + daxVySideUSD) },
+      { venue: 'VY/USDC (Uniswap)', side: tr('both sides', 'ambos lados'), value: new Amount(USD, uniUsdcSideUSD + uniVySideUSD) },
+      { venue: 'VDAO DAX', side: tr('both sides (VGC leg imputed)', 'ambos lados (lado VGC imputado)'), value: new Amount(USD, vdaoBothSidesUSD) },
+      {
+        venue: tr('VMMO (market maker)', 'VMMO (creador de mercado)'),
+        side: vmmoHeld.length
+          ? tr(`inventory — ${vmmoHeld.join(' + ')}`, `inventario — ${vmmoHeld.join(' + ')}`)
+          : tr('inventory (empty)', 'inventario (vacío)'),
+        value: new Amount(USD, vmmoInventoryUSD),
+      },
+      { venue: tr('CLAV total', 'Total CLAV'), side: '', value: new Amount(USD, liquidAssetsUSD), total: true },
     ],
     overviewErrors,
     overviewWarnings,
     hasConfigWarnings,
     balanceMap,
+    // Display-only keys (renderValues), as are dax/vdaoDax `overview` and `buyback`
+    // below. `lps` is NOT: its keys are looked up by name, so they stay English.
     pool: {
-      'VY Price': vyReserve > 0n ? new Amount(USD, (usdcReserve * 10n**30n) / vyReserve) : 'No liquidity',
-      'VY Reserve': new Amount(VY, vyReserve),
-      'USDC Reserve': new Amount(USDC, usdcReserve),
+      [tr('VY Price', 'Precio de VY')]: vyReserve > 0n
+        ? new Amount(USD, (usdcReserve * 10n**30n) / vyReserve)
+        : tr('No liquidity', 'Sin liquidez'),
+      [tr('VY Reserve', 'Reserva de VY')]: new Amount(VY, vyReserve),
+      [tr('USDC Reserve', 'Reserva de USDC')]: new Amount(USDC, usdcReserve),
     },
     lps: (() => {
       const vyInLPs = totalVYReserves + vyReserve;
@@ -1122,11 +1152,11 @@ const fetchData = async () => {
     assets: assets.map(asset => omit(asset, ['currency'])),
     dax: {
       overview: {
-        'Num Pools': String(numPools),
-        'Total VY Reserves': new Amount(VY, totalVYReserves),
-        'Deposits Paused': daxDepositsPaused,
-        'Withdrawals Paused': daxWithdrawalsPaused,
-        'Swaps Paused': daxSwapsPaused,
+        [tr('Num Pools', 'Núm. de Pools')]: String(numPools),
+        [tr('Total VY Reserves', 'Reservas Totales de VY')]: new Amount(VY, totalVYReserves),
+        [tr('Deposits Paused', 'Depósitos Pausados')]: daxDepositsPaused,
+        [tr('Withdrawals Paused', 'Retiros Pausados')]: daxWithdrawalsPaused,
+        [tr('Swaps Paused', 'Swaps Pausados')]: daxSwapsPaused,
       },
       pools: daxPools,
       errors: daxErrors,
@@ -1137,17 +1167,18 @@ const fetchData = async () => {
         // Active, not registered. They differ once a pool is retired, and the
         // gap is stated rather than papered over — the registered id is still
         // on chain and will still be there next time someone counts.
-        'Num Pools': vdaoDaxPools.length < Number(vdaoNumPools)
-          ? `${vdaoDaxPools.length} active (${vdaoNumPools} registered)`
+        [tr('Num Pools', 'Núm. de Pools')]: vdaoDaxPools.length < Number(vdaoNumPools)
+          ? tr(`${vdaoDaxPools.length} active (${vdaoNumPools} registered)`,
+            `${vdaoDaxPools.length} activos (${vdaoNumPools} registrados)`)
           : String(vdaoNumPools),
-        'Swaps Paused': vdaoDaxSwapsPaused,
+        [tr('Swaps Paused', 'Swaps Pausados')]: vdaoDaxSwapsPaused,
       },
       pools: vdaoDaxPools,
       errors: vdaoDaxErrors,
     },
     buyback: {
-      'Total VY Bought Back': new Amount(VY, totalVyBoughtBack),
-      'VY Holdings': new Amount(VY, buybackVyBalance),
+      [tr('Total VY Bought Back', 'Total de VY Recomprado')]: new Amount(VY, totalVyBoughtBack),
+      [tr('VY Holdings', 'Tenencias de VY')]: new Amount(VY, buybackVyBalance),
     },
   };
 };
@@ -1288,12 +1319,17 @@ export default function Mainnet({ onLoaded }: { onLoaded?: () => void }) {
     : !data
       ? (
         <p style={{ textAlign: 'center', opacity: 0.8 }}>
-          Loading on-chain data… {elapsed}s
+          {tr('Loading on-chain data…', 'Cargando datos on-chain…')} {elapsed}s
           {elapsed > 40 && (
             <><br /><span style={{ color: '#e67e22' }}>
-              This is taking longer than it should (normal is ~15s). The RPC may be
-              throttling, or this tab may be pointed at a dev server that is no longer
-              running — reload it.
+              {tr(
+                'This is taking longer than it should (normal is ~15s). The RPC may be '
+                  + 'throttling, or this tab may be pointed at a dev server that is no longer '
+                  + 'running — reload it.',
+                'Esto está tardando más de lo normal (lo habitual es ~15 s). Puede que el RPC '
+                  + 'esté limitando las solicitudes, o que esta pestaña apunte a un servidor de '
+                  + 'desarrollo que ya no está corriendo — recárgala.',
+              )}
             </span></>
           )}
         </p>
@@ -1303,9 +1339,19 @@ export default function Mainnet({ onLoaded }: { onLoaded?: () => void }) {
           {error && (
             <div className="box box--warning">
               <div className="error-item">
-                ⚠ Refresh failed — showing the last good load
-                {loadedAt && ` from ${new Date(loadedAt).toLocaleTimeString()}`}. The RPC
-                provider is not responding; retrying every 30s.
+                ⚠ {loadedAt
+                  ? tr(
+                    `Refresh failed — showing the last good load from ${new Date(loadedAt).toLocaleTimeString()}.`,
+                    `La actualización falló — mostrando la última carga correcta de las ${new Date(loadedAt).toLocaleTimeString()}.`,
+                  )
+                  : tr(
+                    'Refresh failed — showing the last good load.',
+                    'La actualización falló — mostrando la última carga correcta.',
+                  )}
+                {' '}{tr(
+                  'The RPC provider is not responding; retrying every 30s.',
+                  'El proveedor RPC no responde; reintentando cada 30 s.',
+                )}
               </div>
               <div className="error-item" style={{ opacity: 0.7 }}>{error}</div>
             </div>
@@ -1343,19 +1389,19 @@ function Content({ data, volume, volProgress, holders }: { data: MonitorData; vo
         </div>
       )}
       <div>
-        <h2>Token Overview <a href="https://etherscan.io/token/0x597b29520098d6aaca3B2e0D1a380315c9240454" target="_blank" rel="noreferrer" style={{ fontWeight: 'normal' }}>VY ↗ Etherscan</a></h2>
+        <h2>{tr('Token Overview', 'Resumen del Token')} <a href="https://etherscan.io/token/0x597b29520098d6aaca3B2e0D1a380315c9240454" target="_blank" rel="noreferrer" style={{ fontWeight: 'normal' }}>VY ↗ Etherscan</a></h2>
         <div className="box vy-split">
           <div className="vy-split__left">
             <BalanceTable
               data={data.balanceMap}
               headerRows={[
-                { label: 'VY Max Supply', value: data.vyMaxSupply },
-                { label: 'VY Minted', value: data.vyTotalSupply },
+                { label: tr('VY Max Supply', 'Suministro Máximo de VY'), value: data.vyMaxSupply },
+                { label: tr('VY Minted', 'VY Emitido'), value: data.vyTotalSupply },
               ]}
               footerRows={[
-                { label: 'VY in LPs', value: data.lps['Total VY in LPs'] },
-                { label: 'Circulating Supply', value: data.circulatingSupply },
-                { label: 'VY in User Wallets', value: data.lps['VY in User Wallets'] },
+                { label: tr('VY in LPs', 'VY en LPs'), value: data.lps['Total VY in LPs'] },
+                { label: tr('Circulating Supply', 'Suministro Circulante'), value: data.circulatingSupply },
+                { label: tr('VY in User Wallets', 'VY en Billeteras de Usuarios'), value: data.lps['VY in User Wallets'] },
                 { label: 'Holders', value: holders },
               ]}
             />
@@ -1369,7 +1415,7 @@ function Content({ data, volume, volProgress, holders }: { data: MonitorData; vo
       {(data.balanceSheet || data.balanceSheetErrors.length > 0) && (
         <div>
           <h2>
-            Balance Sheet{' '}
+            {tr('Balance Sheet', 'Balance General')}{' '}
             <a href={`https://etherscan.io/address/${VBSO_ADDRESS}`} target="_blank" rel="noreferrer" style={{ fontWeight: 'normal' }}>
               VBSO ↗ Etherscan
             </a>
@@ -1386,10 +1432,10 @@ function Content({ data, volume, volProgress, holders }: { data: MonitorData; vo
             <BackingTiles floors={data.balanceSheet.floors} />
 
 
-            <h3 style={{ marginTop: '1.25rem' }}>Holdings, debt and equity</h3>
+            <h3 style={{ marginTop: '1.25rem' }}>{tr('Holdings, debt and equity', 'Tenencias, deuda y patrimonio')}</h3>
             <HoldingsTable table={data.balanceSheet.assetTable} />
 
-            <h3 style={{ marginTop: '1.25rem' }}>Sheet</h3>
+            <h3 style={{ marginTop: '1.25rem' }}>{tr('Sheet', 'Balance')}</h3>
             {renderValues(data.balanceSheet.rows)}
 
             <h3 style={{ marginTop: '1rem' }}>Era</h3>
@@ -1409,7 +1455,7 @@ function Content({ data, volume, volProgress, holders }: { data: MonitorData; vo
       )}
 
       <div>
-        <h2>Liquidity — CLAV (Current Liquid Assets Value)</h2>
+        <h2>{tr('Liquidity — CLAV (Current Liquid Assets Value)', 'Liquidez — CLAV (Valor Actual de Activos Líquidos)')}</h2>
         <div className="box">
           <table>
             <tbody>
@@ -1428,7 +1474,7 @@ function Content({ data, volume, volProgress, holders }: { data: MonitorData; vo
       </div>
 
       <div>
-        <h2>Market Making — VMMO <a href="https://etherscan.io/address/0x4b77Afb489672B026b349368837E8a13a4939eaD" target="_blank" rel="noreferrer" style={{ fontWeight: 'normal' }}>↗ Etherscan</a></h2>
+        <h2>{tr('Market Making — VMMO', 'Creación de Mercado — VMMO')} <a href="https://etherscan.io/address/0x4b77Afb489672B026b349368837E8a13a4939eaD" target="_blank" rel="noreferrer" style={{ fontWeight: 'normal' }}>↗ Etherscan</a></h2>
         <div className={`box ${data.desk.errors.length > 0 ? 'box--error' : ''}`}>
           {data.desk.errors.map((err, i) => (
             <div key={i} className="error-item">✗ {err}</div>
@@ -1438,7 +1484,7 @@ function Content({ data, volume, volProgress, holders }: { data: MonitorData; vo
       </div>
 
       <div>
-        <h2>Market Stability — VMSO <a href="https://etherscan.io/address/0x4B97D45d276084c1C5BDBd0aa29B417cE02bE2F6" target="_blank" rel="noreferrer" style={{ fontWeight: 'normal' }}>↗ Etherscan</a></h2>
+        <h2>{tr('Market Stability — VMSO', 'Estabilidad de Mercado — VMSO')} <a href="https://etherscan.io/address/0x4B97D45d276084c1C5BDBd0aa29B417cE02bE2F6" target="_blank" rel="noreferrer" style={{ fontWeight: 'normal' }}>↗ Etherscan</a></h2>
         <div className="box">
           {renderValues(data.buyback)}
         </div>
@@ -1481,10 +1527,12 @@ function Content({ data, volume, volProgress, holders }: { data: MonitorData; vo
                   <div key={pool.symbol} className="box" style={{ marginBottom: 0 }}>
                     <h4>{pool.symbol}</h4>
                     {renderValues({
-                      'VY Price (USD)': pool.vyPriceUSD,
-                      'VY Reserve': pool.reserveVY,
-                      [`${pool.symbol} Reserve`]: pool.reserveAsset,
-                      [`${pool.symbol} Reserve (USDC)`]: pool.usdPriced ? pool.reserveAssetUSD : 'no USD price',
+                      [tr('VY Price (USD)', 'Precio de VY (USD)')]: pool.vyPriceUSD,
+                      [tr('VY Reserve', 'Reserva de VY')]: pool.reserveVY,
+                      [tr(`${pool.symbol} Reserve`, `Reserva de ${pool.symbol}`)]: pool.reserveAsset,
+                      [tr(`${pool.symbol} Reserve (USDC)`, `Reserva de ${pool.symbol} (USDC)`)]: pool.usdPriced
+                        ? pool.reserveAssetUSD
+                        : tr('no USD price', 'sin precio en USD'),
                     })}
                   </div>
                 ))}
@@ -1514,12 +1562,12 @@ function Content({ data, volume, volProgress, holders }: { data: MonitorData; vo
                   <div key={i} className="box" style={{ marginBottom: 0 }}>
                     <h4>{pool.vdaoSymbol}/{pool.assetSymbol}</h4>
                     {renderValues({
-                      [`${pool.vdaoSymbol} Token`]: pool.vdaoToken,
-                      [`${pool.assetSymbol} Token`]: pool.asset,
-                      [`${pool.vdaoSymbol} Reserve`]: pool.reserveVdao,
-                      [`${pool.assetSymbol} Reserve`]: pool.reserveAsset,
+                      [tr(`${pool.vdaoSymbol} Token`, `Token ${pool.vdaoSymbol}`)]: pool.vdaoToken,
+                      [tr(`${pool.assetSymbol} Token`, `Token ${pool.assetSymbol}`)]: pool.asset,
+                      [tr(`${pool.vdaoSymbol} Reserve`, `Reserva de ${pool.vdaoSymbol}`)]: pool.reserveVdao,
+                      [tr(`${pool.assetSymbol} Reserve`, `Reserva de ${pool.assetSymbol}`)]: pool.reserveAsset,
                       ...(pool.reserveAssetUSD
-                        ? { [`${pool.assetSymbol} Reserve (USDC)`]: pool.reserveAssetUSD }
+                        ? { [tr(`${pool.assetSymbol} Reserve (USDC)`, `Reserva de ${pool.assetSymbol} (USDC)`)]: pool.reserveAssetUSD }
                         : {}),
                     })}
                   </div>
@@ -1532,14 +1580,29 @@ function Content({ data, volume, volProgress, holders }: { data: MonitorData; vo
 
       {data.hasConfigWarnings && (
         <div>
-          <h2>Configuration Status</h2>
+          <h2>{tr('Configuration Status', 'Estado de Configuración')}</h2>
           <div className="box box--warning">
-            <p>Some contract calls are reverting. On-chain configuration needed:</p>
+            <p>{tr(
+              'Some contract calls are reverting. On-chain configuration needed:',
+              'Algunas llamadas a contratos están revirtiendo. Se necesita configuración on-chain:',
+            )}</p>
             <ul style={{ margin: '8px 0', paddingLeft: '20px' }}>
-              <li>Configure fee tiers in AcquisitionOfficer for WETH, WBTC, PAXG</li>
-              <li>Provide liquidity to VY/USDC pool on Uniswap V2</li>
-              <li>Configure Uniswap V3 pools for USDC/WETH, USDC/WBTC, USDC/PAXG pairs</li>
-              <li>Register assets in CapOfficer (setAssetCap)</li>
+              <li>{tr(
+                'Configure fee tiers in AcquisitionOfficer for WETH, WBTC, PAXG',
+                'Configurar los niveles de comisión en AcquisitionOfficer para WETH, WBTC, PAXG',
+              )}</li>
+              <li>{tr(
+                'Provide liquidity to VY/USDC pool on Uniswap V2',
+                'Aportar liquidez al pool VY/USDC en Uniswap V2',
+              )}</li>
+              <li>{tr(
+                'Configure Uniswap V3 pools for USDC/WETH, USDC/WBTC, USDC/PAXG pairs',
+                'Configurar los pools de Uniswap V3 para los pares USDC/WETH, USDC/WBTC, USDC/PAXG',
+              )}</li>
+              <li>{tr(
+                'Register assets in CapOfficer (setAssetCap)',
+                'Registrar los activos en CapOfficer (setAssetCap)',
+              )}</li>
             </ul>
           </div>
         </div>
@@ -1556,16 +1619,22 @@ function renderValues(
   return (
     <table>
       <tbody>
-        {Object.entries(data).map(([key, value]) => (
-          <tr key={key}>
-            <td >
-              <strong title={tooltips?.[key]}  style={tooltips?.[key] ? { cursor: 'help', borderBottom: '1px dotted #888' } : undefined}>{startCase(key)}</strong>
-            </td>
-            <td>
-              <Value>{transform ? transform(key, value) : value}</Value>
-            </td>
-          </tr>
-        ))}
+        {Object.entries(data).map(([key, value]) => {
+          const shown = transform ? transform(key, value) : value;
+          return (
+            <tr key={key}>
+              <td >
+                {/* Spanish keys arrive already in display form: startCase would strip
+                    their punctuation ("Núm. de Pools" → "Núm De Pools"). */}
+                <strong title={tooltips?.[key]}  style={tooltips?.[key] ? { cursor: 'help', borderBottom: '1px dotted #888' } : undefined}>{tr(startCase(key), key)}</strong>
+              </td>
+              <td>
+                {/* Flags (…Paused) are booleans in the data; only their text is localized. */}
+                <Value>{typeof shown === 'boolean' ? tr(String(shown), shown ? 'sí' : 'no') : shown}</Value>
+              </td>
+            </tr>
+          );
+        })}
       </tbody>
     </table>
   );

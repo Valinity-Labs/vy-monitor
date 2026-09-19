@@ -7,6 +7,7 @@ import {
   compareTrades, dropManipulatedTransactions, loadAllTrades, withEthGapBridge, type EraId, type Trade,
 } from '../utils/priceHistory';
 import { BENCHMARKS, BENCHMARK_SNAPSHOT, mergeSamples, rebased } from '../utils/benchmarks';
+import { DATE_LOCALE, tr } from '../utils/i18n';
 
 /**
  * VALINITY PRICE — the page's lead section: candles above, the tape below.
@@ -34,11 +35,12 @@ type View = 'live' | 'genesis';
 const VIEWS: Record<View, { symbol: string; exchange: string; resolution: string; sub: string }> = {
   live: {
     symbol: 'VY', exchange: 'Uniswap V2', resolution: '1W',
-    sub: 'Current pool · VY/USDC on Uniswap V2 · Ethereum',
+    sub: tr('Current pool · VY/USDC on Uniswap V2 · Ethereum', 'Pool actual · VY/USDC en Uniswap V2 · Ethereum'),
   },
   genesis: {
     symbol: 'VALINITY', exchange: 'Valinity', resolution: '1W',
-    sub: 'Every Valinity contract since genesis · MFC on BNB Chain, then VY on Ethereum',
+    sub: tr('Every Valinity contract since genesis · MFC on BNB Chain, then VY on Ethereum',
+      'Todos los contratos de Valinity desde el génesis · MFC en BNB Chain, luego VY en Ethereum'),
   },
 };
 
@@ -50,7 +52,7 @@ const RANGES: { key: RangeKey; label: string; resolution?: string }[] = [
   { key: '3m', label: '3M', resolution: '1D' },
   { key: '6m', label: '6M', resolution: '1D' },
   { key: '12m', label: '12M', resolution: '1D' },
-  { key: 'all', label: 'All' },
+  { key: 'all', label: tr('All', 'Todo') },
 ];
 
 /** Where a range starts, unix seconds; null for all time. Months are calendar months. */
@@ -63,7 +65,7 @@ function rangeStart(key: RangeKey, nowMs: number): number | null {
 }
 
 const fmtDate = (ts: number) =>
-  new Date(ts * 1000).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' });
+  new Date(ts * 1000).toLocaleDateString(DATE_LOCALE, { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' });
 
 const fmtPrice = (n: number) =>
   '$' + n.toLocaleString('en-US', { minimumFractionDigits: n < 1 ? 4 : 2, maximumFractionDigits: n < 1 ? 4 : 2 });
@@ -194,7 +196,7 @@ export function LifetimePrice({ onReady }: { onReady?: () => void }) {
         </div>
         <div className="vy-price__controls">
           {ready && <span className="vy-price__sub">{fmtDate(start.ts)} → {fmtDate(last.ts)}</span>}
-          <div className="vy-price__ranges" role="group" aria-label="Time range">
+          <div className="vy-price__ranges" role="group" aria-label={tr('Time range', 'Rango de tiempo')}>
             {RANGES.map((r) => (
               <button
                 key={r.key}
@@ -215,27 +217,31 @@ export function LifetimePrice({ onReady }: { onReady?: () => void }) {
               setView(next);
               setRange(openingRange(next));
             }}
-            title={view === 'live' ? 'Every Valinity contract since 2021' : 'Back to the current VY/USDC pool'}
+            title={view === 'live'
+              ? tr('Every Valinity contract since 2021', 'Todos los contratos de Valinity desde 2021')
+              : tr('Back to the current VY/USDC pool', 'Volver al pool actual VY/USDC')}
           >
-            {view === 'live' ? 'Since Genesis' : '← Live Pool'}
+            {view === 'live' ? tr('Since Genesis', 'Desde el Génesis') : tr('← Live Pool', '← Pool en Vivo')}
           </button>
         </div>
       </div>
 
       {!ready ? (
-        <div className="vy-price__loading" aria-busy="true">Loading the live pool from Ethereum…</div>
+        <div className="vy-price__loading" aria-busy="true">{tr('Loading the live pool from Ethereum…', 'Cargando el pool en vivo desde Ethereum…')}</div>
       ) : (
         <>
           <div className="vy-price__stats">
-            <Stat label="First price" value={fmtPrice(first.price)} />
-            <Stat label="Price" value={fmtPrice(last.price)} />
-            <Stat label="All-time low" value={fmtPrice(low)} />
-            <Stat label="All-time high" value={fmtPrice(high)} />
+            <Stat label={tr('First price', 'Primer precio')} value={fmtPrice(first.price)} />
+            <Stat label={tr('Price', 'Precio')} value={fmtPrice(last.price)} />
+            <Stat label={tr('All-time low', 'Mínimo histórico')} value={fmtPrice(low)} />
+            <Stat label={tr('All-time high', 'Máximo histórico')} value={fmtPrice(high)} />
           </div>
 
           {overlays.length > 0 && (
             <div className="vy-price__bench">
-              <span className="vy-price__bench-lead">All started at {fmtPrice(start.price)} on {fmtDate(start.ts)}</span>
+              <span className="vy-price__bench-lead">
+                {tr(`All started at ${fmtPrice(start.price)} on ${fmtDate(start.ts)}`, `Todos parten de ${fmtPrice(start.price)} el ${fmtDate(start.ts)}`)}
+              </span>
               <span className="vy-price__bench-item">
                 <strong>VY</strong> {fmtPct(last.price / start.price - 1)}
               </span>
@@ -247,7 +253,9 @@ export function LifetimePrice({ onReady }: { onReady?: () => void }) {
                     type="button"
                     className={`vy-price__bench-item vy-price__bench-toggle vy-price__bench-toggle--${o.id}`}
                     aria-pressed={on}
-                    title={`${on ? 'Hide' : 'Show'} ${o.label} on the chart`}
+                    title={on
+                      ? tr(`Hide ${o.label} on the chart`, `Ocultar ${o.label} en el gráfico`)
+                      : tr(`Show ${o.label} on the chart`, `Mostrar ${o.label} en el gráfico`)}
                     onClick={() => setLinesOn((prev) => ({ ...prev, [o.id]: !on }))}
                   >
                     <span className={`vy-price__bench-swatch vy-price__bench-swatch--${o.id}`} />
@@ -270,7 +278,8 @@ export function LifetimePrice({ onReady }: { onReady?: () => void }) {
             symbol="VY"
             limit={100}
             note={view === 'genesis'
-              ? "Amounts are in each era's own token — MFC on BNB Chain, VY on Ethereum — and link to that chain's explorer."
+              ? tr("Amounts are in each era's own token — MFC on BNB Chain, VY on Ethereum — and link to that chain's explorer.",
+                'Los montos están en el token de cada era — MFC en BNB Chain, VY en Ethereum — y enlazan al explorador de esa red.')
               : undefined}
           />
         </>

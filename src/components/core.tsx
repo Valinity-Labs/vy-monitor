@@ -1,4 +1,5 @@
 import { formatValue, type FormatValueOptions } from '../utils/formatValue';
+import { tr } from '../utils/i18n';
 
 export interface ValueProps extends FormatValueOptions {
   children: unknown
@@ -105,23 +106,23 @@ export function BandIndicator({
         {/* OOR badge */}
         {oor && (
           <text x={trackX} y={H - 2} textAnchor="middle" fontSize={11} fill="#e74c3c" fontWeight="bold">
-            OUT OF RANGE
+            {tr('OUT OF RANGE', 'FUERA DE RANGO')}
           </text>
         )}
       </svg>
 
       <div style={{ fontSize: '0.75rem', lineHeight: 1.5 }}>
-        <div><strong>Band Position</strong></div>
+        <div><strong>{tr('Band Position', 'Posición en la Banda')}</strong></div>
         <div style={{ color }}>
-          {oor ? 'Out of range' : `${positionPct >= 0 ? '+' : ''}${positionPct.toFixed(1)}%`}
+          {oor ? tr('Out of range', 'Fuera de rango') : `${positionPct >= 0 ? '+' : ''}${positionPct.toFixed(1)}%`}
         </div>
         <div style={{ opacity: 0.6, marginTop: 6 }}>
-          0% = mid<br />
-          ±100% = band edge
+          {tr('0% = mid', '0% = centro')}<br />
+          {tr('±100% = band edge', '±100% = borde de la banda')}
         </div>
         {bandWidthPct !== undefined && (
           <>
-            <div style={{ marginTop: 6 }}><strong>Band Width</strong></div>
+            <div style={{ marginTop: 6 }}><strong>{tr('Band Width', 'Ancho de Banda')}</strong></div>
             <div style={{ opacity: 0.8 }}>{`±${bandWidthPct.toFixed(2)}%`}</div>
           </>
         )}

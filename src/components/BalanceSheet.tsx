@@ -22,6 +22,8 @@
  * priced in VY. The underlying equity rows are still shown in the sheet below.
  */
 
+import { tr } from '../utils/i18n';
+
 export type Floors = {
   projected: number | null;
   /** The venue `projected` is read from — the highest one after the deploy. */
@@ -51,7 +53,7 @@ export type Floors = {
 
 const fmtDays = (sec: number) => {
   const d = sec / 86_400;
-  return d >= 1 ? `${d.toFixed(1)} days` : `${(sec / 3600).toFixed(1)} h`;
+  return d >= 1 ? tr(`${d.toFixed(1)} days`, `${d.toFixed(1)} días`) : `${(sec / 3600).toFixed(1)} h`;
 };
 
 const fmtUsd = (n: number, dp = 4) =>
@@ -66,22 +68,28 @@ export function BackingTiles({ floors }: { floors: Floors }) {
         <div className="vy-tile">
           <div className="vy-tile__label">
             <span className="vy-swatch" style={{ background: 'var(--vy-series-1)' }} />
-            Projected
+            {tr('Projected', 'Proyectado')}
           </div>
           <div className="vy-tile__value" style={{ color: 'var(--vy-series-1)' }}>
             {floors.projected == null ? '—' : fmtUsd(floors.projected)}
           </div>
           {floors.projected == null ? (
-            <div className="vy-tile__caveat">{floors.projectedError ?? 'unavailable'}</div>
+            <div className="vy-tile__caveat">{floors.projectedError ?? tr('unavailable', 'no disponible')}</div>
           ) : (
             <>
               <div className="vy-tile__hint">
-                {floors.projectedPool} pool · {floors.projectedMultiple.toFixed(2)}× the highest pool now · once VMMO deploys its book
+                {tr(
+                  `${floors.projectedPool} pool · ${floors.projectedMultiple.toFixed(2)}× the highest pool now · once VMMO deploys its book`,
+                  `pool ${floors.projectedPool} · ${floors.projectedMultiple.toFixed(2)}× el pool más alto de ahora · cuando VMMO despliegue su libro`,
+                )}
               </div>
               <div className="vy-tile__caveat">
-                ammo {fmtUsd(floors.projectedAmmoUsd, 0)}
+                {tr('ammo', 'munición')} {fmtUsd(floors.projectedAmmoUsd, 0)}
                 {floors.projectedDaysTo99 !== null && (
-                  <> · 99% deployed in {floors.projectedDaysTo99} days</>
+                  <>{tr(
+                    ` · 99% deployed in ${floors.projectedDaysTo99} days`,
+                    ` · 99% desplegado en ${floors.projectedDaysTo99} días`,
+                  )}</>
                 )}
               </div>
             </>
@@ -91,35 +99,43 @@ export function BackingTiles({ floors }: { floors: Floors }) {
         <div className="vy-tile">
           <div className="vy-tile__label">
             <span className="vy-swatch" style={{ background: 'var(--vy-ink-2)' }} />
-            Market
+            {tr('Market', 'Mercado')}
           </div>
           <div className="vy-tile__value" style={{ color: 'var(--vy-ink-2)' }}>
             {fmtUsd(floors.market)}
           </div>
-          <div className="vy-tile__hint">what VY actually trades at</div>
+          <div className="vy-tile__hint">{tr('what VY actually trades at', 'a lo que realmente cotiza VY')}</div>
           <div className="vy-tile__caveat">
-            price read from the official Valinity{' '}
+            {/* Spanish puts "Valinity" after the linked words, so the fragments differ in order. */}
+            {tr('price read from the official Valinity', 'precio leído del')}{' '}
             {floors.vyOracle ? (
               <a href={`https://etherscan.io/address/${floors.vyOracle}`} target="_blank" rel="noreferrer">
-                price oracle contract
+                {tr('price oracle contract', 'contrato oficial del oráculo de precios')}
               </a>
-            ) : 'price oracle contract'}
+            ) : tr('price oracle contract', 'contrato oficial del oráculo de precios')}
+            {tr('', ' de Valinity')}
           </div>
         </div>
 
         <div className="vy-tile">
           <div className="vy-tile__label">
             <span className="vy-swatch" style={{ background: 'var(--vy-series-2)' }} />
-            Loan to VY value
+            {tr('Loan to VY value', 'Préstamo por valor de VY')}
           </div>
           <div className="vy-tile__value" style={{ color: 'var(--vy-series-2)' }}>
             {fmtUsd(floors.borrowUsdPerVy)}
           </div>
           <div className="vy-tile__hint">
-            per VY posted, at {(floors.ltvBps / 100).toFixed(0)}% LTV
+            {tr(
+              `per VY posted, at ${(floors.ltvBps / 100).toFixed(0)}% LTV`,
+              `por VY en garantía, al ${(floors.ltvBps / 100).toFixed(0)}% de LTV`,
+            )}
           </div>
           <div className="vy-tile__caveat">
-            max {floors.maxLoanVy.toLocaleString('en-US', { maximumFractionDigits: 0 })} VY per loan
+            {tr(
+              `max ${floors.maxLoanVy.toLocaleString('en-US', { maximumFractionDigits: 0 })} VY per loan`,
+              `máx. ${floors.maxLoanVy.toLocaleString('en-US', { maximumFractionDigits: 0 })} VY por préstamo`,
+            )}
           </div>
         </div>
 
@@ -194,17 +210,17 @@ export function HoldingsTable({ table }: { table: AssetTable }) {
   return (
     <div className="vy-sheet">
       <div className="vy-cols">
-        <Col title="Holdings" sub="total ecosystem holdings" accent="var(--vy-series-1)">
+        <Col title={tr('Holdings', 'Tenencias')} sub={tr('total ecosystem holdings', 'tenencias totales del ecosistema')} accent="var(--vy-series-1)">
           {rows.map((r) => <Cell key={r.symbol} sym={r.symbol} native={r.heldNative} usd={r.heldUsd} />)}
           <div className="vy-col__total">{money(totals.held)}</div>
         </Col>
 
-        <Col title="Debt" sub="principal + unclaimed yield, per asset" accent="var(--vy-series-2)">
+        <Col title={tr('Debt', 'Deuda')} sub={tr('principal + unclaimed yield, per asset', 'principal + rendimiento no reclamado, por activo')} accent="var(--vy-series-2)">
           {rows.map((r) => <Cell key={r.symbol} sym={r.symbol} native={r.debtNative} usd={r.debtUsd} />)}
           <div className="vy-col__total">{money(totals.debt)}</div>
         </Col>
 
-        <Col title="Equity" sub="holdings minus debt">
+        <Col title={tr('Equity', 'Patrimonio')} sub={tr('holdings minus debt', 'tenencias menos deuda')}>
           {rows.map((r) => (
             <div className="vy-cell" key={r.symbol}>
               <div className="vy-cell__sym">{r.symbol}</div>
@@ -221,10 +237,10 @@ export function HoldingsTable({ table }: { table: AssetTable }) {
       <div className={`vy-verdict${over ? '' : ' vy-verdict--bad'}`}>
         <span className="vy-verdict__mark">{over ? '✓' : '✗'}</span>
         <span>
-          <strong>{money(totals.held)}</strong> held against{' '}
-          <strong>{money(totals.debt)}</strong> owed —{' '}
+          <strong>{money(totals.held)}</strong> {tr('held against', 'respaldado frente a')}{' '}
+          <strong>{money(totals.debt)}</strong> {tr('owed', 'adeudado')} —{' '}
           <strong>{totals.ratio.toFixed(2)}×</strong>{' '}
-          {over ? 'overcollateralized' : 'UNDERCOLLATERALIZED'}, equity{' '}
+          {over ? tr('overcollateralized', 'sobrecolateralizado') : tr('UNDERCOLLATERALIZED', 'SUBCOLATERALIZADO')}, {tr('equity', 'patrimonio')}{' '}
           <strong>{money(totals.equity)}</strong>
         </span>
       </div>
@@ -287,10 +303,12 @@ export function EraLadder({
           are ceilings at the top tier over its full term — not an APY and not what
           a tier 1 stake quotes — so the qualifier travels with the numbers. */}
       <div className="vy-ladder__head">
-        <span>Max yield ceiling per asset</span>
+        <span>{tr('Max yield ceiling per asset', 'Techo máximo de rendimiento por activo')}</span>
         {tier3TermDays > 0 && (
           <span className="vy-ladder__term">
-            premium tier 3 · total over a <strong>{tier3TermDays}-day</strong> term
+            {tr('premium tier 3 · total over a', 'nivel premium 3 · total en un plazo de')}{' '}
+            <strong>{tr(`${tier3TermDays}-day`, `${tier3TermDays} días`)}</strong>
+            {tr(' term', '')}
           </span>
         )}
       </div>
@@ -305,7 +323,7 @@ export function EraLadder({
               {r.label}
             </div>
             <div className="vy-rung__rate">{r.ratePct.toFixed(2)}%</div>
-            <div className="vy-rung__rel">{r.relPct.toFixed(0)}% of anchor</div>
+            <div className="vy-rung__rel">{tr(`${r.relPct.toFixed(0)}% of anchor`, `${r.relPct.toFixed(0)}% del ancla`)}</div>
 
             {assetMults.length > 0 && (
               <div className="vy-rung__assets">
@@ -324,7 +342,10 @@ export function EraLadder({
                       className={`vy-arate${a.fixedBps ? ' vy-arate--fixed' : ''}`}
                       key={a.symbol}
                       title={a.fixedBps
-                        ? `${a.symbol} is quoted by the VYO, which does not read the era — this rate does not step down.`
+                        ? tr(
+                          `${a.symbol} is quoted by the VYO, which does not read the era — this rate does not step down.`,
+                          `${a.symbol} lo cotiza el VYO, que no lee la era — esta tasa no baja.`,
+                        )
                         : undefined}
                     >
                       <span className="vy-arate__sym">{a.symbol}</span>
@@ -345,23 +366,29 @@ export function EraLadder({
             effect sit on one line instead of the reader pairing a figure at the
             bottom of the section with a ladder at the top. */}
         <div className="vy-rung vy-rung--note">
-          <div className="vy-rung__top">Market cap</div>
+          <div className="vy-rung__top">{tr('Market cap', 'Capitalización de Mercado')}</div>
           <div className="vy-mcap">{money(mcapUsd)}</div>
           <div className="vy-rung__note-body">
-            Max interest steps down as market cap grows.{' '}
+            {tr(
+              'Max interest steps down as market cap grows.',
+              'El interés máximo baja a medida que crece la capitalización de mercado.',
+            )}{' '}
             {next && (
               <>
-                {money(next.threshold - mcapUsd)} more reaches era {next.era},
-                cutting the ceiling from {current?.ratePct.toFixed(2)}% to{' '}
-                {next.ratePct.toFixed(2)}%.
+                {tr(
+                  `${money(next.threshold - mcapUsd)} more reaches era ${next.era}, cutting the ceiling from ${current?.ratePct.toFixed(2) ?? ''}% to ${next.ratePct.toFixed(2)}%.`,
+                  `${money(next.threshold - mcapUsd)} más alcanza la era ${next.era}, bajando el techo de ${current?.ratePct.toFixed(2) ?? ''}% a ${next.ratePct.toFixed(2)}%.`,
+                )}
               </>
             )}
-            {!next && <>Final era — the ceiling does not step down again.</>}
+            {!next && <>{tr('Final era — the ceiling does not step down again.', 'Era final — el techo no vuelve a bajar.')}</>}
           </div>
           {drift && (
             <div className="vy-rung__drift">
-              Ladder disagrees with on-chain eraMaxBps
-              ({(liveEraMaxBps / 100).toFixed(2)}%) — multiplier table is stale.
+              {tr(
+                `Ladder disagrees with on-chain eraMaxBps (${(liveEraMaxBps / 100).toFixed(2)}%) — multiplier table is stale.`,
+                `La escalera no coincide con eraMaxBps on-chain (${(liveEraMaxBps / 100).toFixed(2)}%) — la tabla de multiplicadores está desactualizada.`,
+              )}
             </div>
           )}
         </div>
@@ -374,12 +401,16 @@ export function EraLadder({
         <span>
           VY <strong>${vyPriceUsd.toFixed(4)}</strong>
           <span className="vy-ladder__foot-sep">·</span>
-          market cap = this price × total supply
+          {tr('market cap = this price × total supply', 'capitalización de mercado = este precio × suministro total')}
         </span>
         {hasFixed && (
           <span>
-            VY's own rate is set by the <strong>VYO</strong>, not by the era — it is
-            shown flat because it does not step down with the rungs.
+            {tr("VY's own rate is set by the", 'La tasa propia de VY la fija el')}{' '}
+            <strong>VYO</strong>
+            {tr(
+              ', not by the era — it is shown flat because it does not step down with the rungs.',
+              ', no la era — se muestra plana porque no baja con los escalones.',
+            )}
           </span>
         )}
       </div>
@@ -414,11 +445,14 @@ export function TradingVolume({
   if (!volume) {
     return (
       <div className="vy-vol">
-        <div className="vy-vol__title">Trading volume</div>
+        <div className="vy-vol__title">{tr('Trading volume', 'Volumen de negociación')}</div>
         <div className="vy-vol__loading">
           {progress && progress.total > 0
-            ? `indexing VY transactions… ${progress.done.toLocaleString('en-US')} / ${progress.total.toLocaleString('en-US')}`
-            : 'reading transfer logs…'}
+            ? tr(
+              `indexing VY transactions… ${progress.done.toLocaleString('en-US')} / ${progress.total.toLocaleString('en-US')}`,
+              `indexando transacciones de VY… ${progress.done.toLocaleString('en-US')} / ${progress.total.toLocaleString('en-US')}`,
+            )
+            : tr('reading transfer logs…', 'leyendo registros de transferencias…')}
         </div>
       </div>
     );
@@ -426,14 +460,14 @@ export function TradingVolume({
   const { rows, totals } = volume;
   return (
     <div className="vy-vol">
-      <div className="vy-vol__title">Trading volume</div>
+      <div className="vy-vol__title">{tr('Trading volume', 'Volumen de negociación')}</div>
       <table className="vy-vol__table">
         <thead>
           <tr>
             <th />
             <th>24h</th>
             <th>30d</th>
-            <th>All time</th>
+            <th>{tr('All time', 'Histórico')}</th>
           </tr>
         </thead>
         <tbody>
@@ -454,8 +488,10 @@ export function TradingVolume({
         </tbody>
       </table>
       <div className="vy-vol__note">
-        every USDC/WBTC/WETH/PAXG leg inside a VY transaction ({volume.txCount.all.toLocaleString('en-US')} txs
-        indexed), valued at today's marks.
+        {tr(
+          `every USDC/WBTC/WETH/PAXG leg inside a VY transaction (${volume.txCount.all.toLocaleString('en-US')} txs indexed), valued at today's marks.`,
+          `cada tramo de USDC/WBTC/WETH/PAXG dentro de una transacción de VY (${volume.txCount.all.toLocaleString('en-US')} txs indexadas), valorado a los precios de hoy.`,
+        )}
       </div>
     </div>
   );
@@ -507,15 +543,15 @@ export function MarketMakerDesk({ desk }: { desk: Desk }) {
     <div className="vy-desk">
       <div className="vy-desk__head">
         <div>
-          <div className="vy-desk__label">Undeployed book</div>
+          <div className="vy-desk__label">{tr('Undeployed book', 'Libro sin desplegar')}</div>
           <div className="vy-desk__big">{fmtUsd(desk.totalHeldUsd, 0)}</div>
         </div>
         <div>
-          <div className="vy-desk__label">Ready to deploy</div>
+          <div className="vy-desk__label">{tr('Ready to deploy', 'Listo para desplegar')}</div>
           <div className="vy-desk__big">{fmtUsd(desk.totalReadyUsd, 0)}</div>
         </div>
         <div>
-          <div className="vy-desk__label">Deploy window</div>
+          <div className="vy-desk__label">{tr('Deploy window', 'Ventana de despliegue')}</div>
           <div className="vy-desk__big">{fmtDays(desk.deployWindowSec)}</div>
         </div>
       </div>
@@ -524,8 +560,8 @@ export function MarketMakerDesk({ desk }: { desk: Desk }) {
         <thead>
           <tr>
             <th />
-            <th>holdings</th>
-            <th>ready to deploy</th>
+            <th>{tr('holdings', 'tenencias')}</th>
+            <th>{tr('ready to deploy', 'listo para desplegar')}</th>
           </tr>
         </thead>
         <tbody>
@@ -549,9 +585,12 @@ export function MarketMakerDesk({ desk }: { desk: Desk }) {
       {desk.projCurve && (
         <div className="vy-proj">
           <div className="vy-proj__title">
-            Projected VY as the book deploys
+            {tr('Projected VY as the book deploys', 'VY proyectado a medida que se despliega el libro')}
             <span className="vy-proj__tag">
-              highest pool · × vs {desk.projCurve.livePool} pool now {fmtUsd(desk.projCurve.livePriceUsd)} · not a forecast
+              {tr(
+                `highest pool · × vs ${desk.projCurve.livePool} pool now ${fmtUsd(desk.projCurve.livePriceUsd)} · not a forecast`,
+                `pool más alto · × vs pool ${desk.projCurve.livePool} ahora ${fmtUsd(desk.projCurve.livePriceUsd)} · no es un pronóstico`,
+              )}
             </span>
           </div>
 
@@ -559,8 +598,8 @@ export function MarketMakerDesk({ desk }: { desk: Desk }) {
             <thead>
               <tr>
                 <th />
-                <th>book deployed</th>
-                <th>projected VY</th>
+                <th>{tr('book deployed', 'libro desplegado')}</th>
+                <th>{tr('projected VY', 'VY proyectado')}</th>
                 <th>pool</th>
                 <th />
               </tr>

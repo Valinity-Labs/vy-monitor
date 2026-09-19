@@ -1,16 +1,18 @@
 import { setTheme, useTheme } from '../utils/theme';
+import { tr } from '../utils/i18n';
 
 /** The header's light/dark switch. Shows what a click switches TO: a sun in dark, a moon in light. */
 export function ThemeToggle() {
   const theme = useTheme();
   const next = theme === 'dark' ? 'light' : 'dark';
+  const label = next === 'light' ? tr('Switch to light mode', 'Cambiar a modo claro') : tr('Switch to dark mode', 'Cambiar a modo oscuro');
   return (
     <button
       type="button"
       className="theme-toggle"
       onClick={() => setTheme(next)}
-      aria-label={`Switch to ${next} mode`}
-      title={`Switch to ${next} mode`}
+      aria-label={label}
+      title={label}
     >
       {next === 'light' ? (
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">

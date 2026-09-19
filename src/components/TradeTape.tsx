@@ -1,3 +1,4 @@
+import { DATE_LOCALE, tr } from '../utils/i18n';
 import { ERAS, decimalsForPrice, type Trade } from '../utils/priceHistory';
 
 /**
@@ -26,7 +27,7 @@ const price = (n: number) =>
   });
 
 const when = (ts: number) =>
-  new Date(ts * 1000).toLocaleString('en-US', {
+  new Date(ts * 1000).toLocaleString(DATE_LOCALE, {
     year: '2-digit', month: 'short', day: '2-digit',
     hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'UTC',
   });
@@ -38,15 +39,18 @@ export function TradeTape({
   const rows = trades.slice(-limit).reverse();
 
   if (!rows.length) {
-    return <div className="vy-tape__empty">No trades recorded.</div>;
+    return <div className="vy-tape__empty">{tr('No trades recorded.', 'No hay operaciones registradas.')}</div>;
   }
 
   return (
     <div className="vy-tape">
       <div className="vy-tape__head">
-        <span>Transactions{symbol ? ` · ${symbol}` : ''}</span>
+        <span>{tr('Transactions', 'Transacciones')}{symbol ? ` · ${symbol}` : ''}</span>
         <span className="vy-tape__count">
-          showing {rows.length.toLocaleString('en-US')} of {trades.length.toLocaleString('en-US')}
+          {tr(
+            `showing ${rows.length.toLocaleString('en-US')} of ${trades.length.toLocaleString('en-US')}`,
+            `mostrando ${rows.length.toLocaleString('en-US')} de ${trades.length.toLocaleString('en-US')}`,
+          )}
         </span>
       </div>
 
@@ -54,12 +58,12 @@ export function TradeTape({
         <table className="vy-tape__table">
           <thead>
             <tr>
-              <th>Time (UTC)</th>
-              <th>Side</th>
-              <th className="vy-tape__num">Price</th>
-              <th className="vy-tape__num">Amount</th>
-              <th className="vy-tape__num">Value</th>
-              <th>Address</th>
+              <th>{tr('Time (UTC)', 'Hora (UTC)')}</th>
+              <th>{tr('Side', 'Lado')}</th>
+              <th className="vy-tape__num">{tr('Price', 'Precio')}</th>
+              <th className="vy-tape__num">{tr('Amount', 'Cantidad')}</th>
+              <th className="vy-tape__num">{tr('Value', 'Valor')}</th>
+              <th>{tr('Address', 'Dirección')}</th>
               <th>Tx</th>
             </tr>
           </thead>
@@ -70,7 +74,7 @@ export function TradeTape({
                 <tr key={t.key}>
                   <td className="vy-tape__time">{when(t.ts)}</td>
                   <td className="vy-tape__c-side">
-                    <span className={`vy-tape__side vy-tape__side--${t.side}`}>{t.side}</span>
+                    <span className={`vy-tape__side vy-tape__side--${t.side}`}>{t.side === 'buy' ? tr('buy', 'compra') : tr('sell', 'venta')}</span>
                   </td>
                   {/* What this trade actually paid. The chart plots the pool's price after it. */}
                   <td className="vy-tape__num vy-tape__price">{price(t.execPrice ?? t.price)}</td>
