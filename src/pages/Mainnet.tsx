@@ -14,6 +14,7 @@ import networks from '../networks';
 import { indexTxFlow, bucketFlow, type FlowProgress } from '../utils/txFlow';
 import { scanFullHistory } from '../utils/logs';
 import { countHolders } from '../utils/holders';
+
 import { LifetimePrice } from '../components/LifetimePrice';
 import { LOAD_LIMIT_MS } from '../utils/loadLimit';
 import { tr } from '../utils/i18n';
@@ -959,6 +960,39 @@ const fetchData = async () => {
     }
   }
 
+  // ─── VY the arbitrage would buy if the market fell below fair value ──────
+  //
+  // The DAX treasury pools (VY/WETH, VY/WBTC, VY/PAXG) are what the oracle medians into FAIR
+  // VALUE. When the public VY/USDC pool trades BELOW them, the arbitrage sells VY into the DAX
+  // and spends the proceeds buying VY in the public pool. Buying lifts the public price, selling
+  // drops the DAX price, and it stops where the two meet — so the size is set by both pools'
+  // depth, not by the gap alone.
+  //
+  // Both venues are constant product. Buying q VY in the public pool leaves its price at
+  // ku/(Vu−q)²; selling the same q into the DAX leaves theirs at kd/(Vd+q)². Setting those equal
+  // and solving gives the crossing point in closed form:
+  //
+  //     q = (√kd·Vu − √ku·Vd) / (√ku + √kd)
+  //
+  // q ≤ 0 means the market is already at or above the DAX — nothing to arbitrage, so zero. The
+  // 0.3% Uniswap fee is left out: it shifts the crossing point by well under a percent and would
+  // only make the figure smaller.
+  const arbBuyVy = (() => {
+    const Vu = Number(vyReserve) / 1e18;
+    const Uu = Number(usdcReserve) / 1e6;
+    // The three treasury pools only — the VGC pool is not part of fair value.
+    const treasury = daxPools.filter((p) => tableAssets.some(
+      (t) => t.address.toLowerCase() === p.asset.toLowerCase() && t.sym !== 'USDC'
+    ));
+    const Vd = treasury.reduce((n, p) => n + Number(p.reserveVY.value) / 1e18, 0);
+    const Ad = treasury.reduce((n, p) => n + Number(p.reserveAssetUSD.value) / 1e18, 0);
+    if (!(Vu > 0 && Uu > 0 && Vd > 0 && Ad > 0)) return null;
+    const rootKu = Math.sqrt(Vu * Uu);
+    const rootKd = Math.sqrt(Vd * Ad);
+    const q = (rootKd * Vu - rootKu * Vd) / (rootKu + rootKd);
+    return q > 0 ? Math.min(q, Vu) : 0;
+  })();
+
   const projCurve = (() => {
     const windowDays = deployWindowSec / 86_400;
     if (windowDays <= 0) return null;
@@ -981,6 +1015,11 @@ const fetchData = async () => {
       const f = days === null ? 1 : 1 - Math.exp(-days / windowDays);
       return { label, deployedPct: f * 100, ...highest((v) => v.heldUsd * f) };
     };
+    // VY THE BOOK WOULD TAKE OFF THE MARKET. The projected PRICE is the highest venue; the VY
+    // bought is the sum of ALL of them, because every asset's book buys in its own venue at the
+    // same time. Constant product: spending `usdIn` against (depthUsd, vy) removes
+    // vy × usdIn / (depthUsd + usdIn) tokens.
+    const vyBoughtFull = venues.reduce((n, v) => n + (v.vy * v.heldUsd) / (v.depthUsd + v.heldUsd), 0);
     // "now": only the slice the drip has already released, into today's pools.
     const heldUsd = deskRows.reduce((n, r) => n + r.heldUsd, 0);
     const readyUsd = deskRows.reduce((n, r) => n + r.readyUsd, 0);
@@ -988,6 +1027,7 @@ const fetchData = async () => {
     return {
       livePriceUsd: live.priceUsd,
       livePool: live.pool,
+      vyBoughtFull,
       rows: [
         { label: tr('now', 'ahora'), deployedPct: heldUsd > 0 ? (readyUsd / heldUsd) * 100 : 0, ...highest((v) => v.readyUsd) },
         point(tr('7 days', '7 días'), 7),
@@ -1059,6 +1099,12 @@ const fetchData = async () => {
           : 0,
         projectedDaysTo99: daysTo99,
         projectedError: projCurve ? null : (projectionError ?? tr('pool reserves unavailable', 'reservas del pool no disponibles')),
+        // What the buyback officers have already bought back (every VBO→VYT transfer, whatever
+        // its source) PLUS the VY they are holding right now. Context under the tile, never part
+        // of the projection above it.
+        burnBoughtBackVy: Number(totalVyBoughtBack + buybackVyBalance) / 1e18,
+        burnProjectedVy: projCurve ? projCurve.vyBoughtFull : null,
+        burnArbVy: arbBuyVy,
         hard: Number(floorHard) / 1e18,
         borrowUsdPerVy,
         ltvBps,
@@ -1124,7 +1170,7 @@ const fetchData = async () => {
     // one line per leg. Splitting DAX and the pair across two rows each made the
     // reader add them up to get the number that actually matters.
     clav: [
-      { venue: 'Valinity Arbitrage Exchange (DAX)', side: tr('both sides', 'ambos lados'), value: new Amount(USD, daxAssetSideUSD + daxVySideUSD) },
+      { venue: 'Valinity Private Arbitrage Exchange (DAX)', side: tr('both sides', 'ambos lados'), value: new Amount(USD, daxAssetSideUSD + daxVySideUSD) },
       { venue: 'VY/USDC (Uniswap)', side: tr('both sides', 'ambos lados'), value: new Amount(USD, uniUsdcSideUSD + uniVySideUSD) },
       { venue: 'VDAO DAX', side: tr('both sides (VGC leg imputed)', 'ambos lados (lado VGC imputado)'), value: new Amount(USD, vdaoBothSidesUSD) },
       {
@@ -1245,9 +1291,10 @@ export default function Mainnet({ onLoaded }: { onLoaded?: () => void }) {
   const [volProgress, setVolProgress] = useState<FlowProgress | null>(null);
   const [holders, setHolders] = useState<number | null>(null);
 
-  // The whole page loads behind one loading screen and appears at once: it lifts when the price
-  // chart has drawn AND the balance sheet has answered (data or an error). Past LOAD_LIMIT_MS it
-  // lifts anyway and the page shows what it has, so a slow RPC never covers the page forever.
+  // The loading screen lifts as soon as the PRICE CHART has drawn — about 3s, against the ~9s the
+  // balance sheet needs for its 50-odd round trips. The sheet is below the fold and fills in
+  // underneath with its own quiet line, so waiting for it only kept the reader staring at a cover.
+  // Past LOAD_LIMIT_MS the screen lifts regardless, so a slow RPC never covers the page forever.
   const [chartReady, setChartReady] = useState(false);
   const onChartReady = useCallback(() => setChartReady(true), []);
   const [overLimit, setOverLimit] = useState(false);
@@ -1255,7 +1302,7 @@ export default function Mainnet({ onLoaded }: { onLoaded?: () => void }) {
     const t = setTimeout(() => setOverLimit(true), Math.max(0, LOAD_LIMIT_MS - performance.now()));
     return () => clearTimeout(t);
   }, []);
-  const loaded = (chartReady && (!!data || !!error)) || overLimit;
+  const loaded = chartReady || overLimit;
   useEffect(() => { if (loaded) onLoaded?.(); }, [loaded, onLoaded]);
 
   useEffect(() => {
@@ -1494,21 +1541,21 @@ function Content({ data, volume, volProgress, holders }: { data: MonitorData; vo
       </div>
 
       <div>
-        <h2>{tr('Market Stability — VMSO', 'Estabilidad de Mercado — VMSO')} <a href="https://etherscan.io/address/0x4B97D45d276084c1C5BDBd0aa29B417cE02bE2F6" target="_blank" rel="noreferrer" style={{ fontWeight: 'normal' }}>↗ Etherscan</a></h2>
+        <h2>{tr('Valinity Buyback Officer', 'Oficial de Recompra de Valinity')} <a href="https://etherscan.io/address/0x4B97D45d276084c1C5BDBd0aa29B417cE02bE2F6" target="_blank" rel="noreferrer" style={{ fontWeight: 'normal' }}>↗ Etherscan</a></h2>
         <div className="box">
           {renderValues(data.buyback)}
         </div>
       </div>
 
       <div>
-        <h2>Pool (VY/USDC) <a href="https://etherscan.io/address/0xf96cCac0bfd5de8d1F69EA9F9f43ed3B174c2705" target="_blank" rel="noreferrer" style={{ fontWeight: 'normal' }}>↗ Etherscan</a></h2>
+        <h2>{tr('Public Market (VY/USDC)', 'Mercado Público (VY/USDC)')} <a href="https://etherscan.io/address/0xf96cCac0bfd5de8d1F69EA9F9f43ed3B174c2705" target="_blank" rel="noreferrer" style={{ fontWeight: 'normal' }}>↗ Etherscan</a></h2>
         <div className="box">
           {renderValues(data.pool)}
         </div>
       </div>
 
       <div>
-        <h2>Valinity Arbitrage Exchange <a href="https://etherscan.io/address/0xD256C672616f7c5DEE3e42a8199f121EE08401B7" target="_blank" rel="noreferrer" style={{ fontWeight: 'normal' }}>↗ Etherscan</a></h2>
+        <h2>Valinity Private Arbitrage Exchange <a href="https://etherscan.io/address/0xD256C672616f7c5DEE3e42a8199f121EE08401B7" target="_blank" rel="noreferrer" style={{ fontWeight: 'normal' }}>↗ Etherscan</a></h2>
         <div className={`box ${data.dax.errors.length > 0 ? 'box--error' : ''}`}>
           {data.dax.errors.length > 0 && (
             <div className="error-list">

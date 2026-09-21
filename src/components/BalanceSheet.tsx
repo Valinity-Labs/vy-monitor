@@ -1,14 +1,18 @@
 /**
  * VBSO balance-sheet presentation.
  *
- * THREE NUMBERS, published together on purpose — never one alone. Shown left to
- * right as projected · market · floor, so the market price sits between the
- * optimistic projection and the conservative floor:
+ * FIVE BOXES, published together on purpose — never one alone. The projected price
+ * leads on the left, two rows tall; the market it is projected from sits beside it,
+ * and the two buyback counts close the row on the right:
  *
- *   projected  highest venue after VMMO spends  — each asset's book into its own
- *              its whole book (Mainnet.tsx)       pool; NOT VBSO.projectedVyPrice()
- *   market     sheet.usdPerVy                   — what VY trades at now
- *   floor_hard hardEquityUsd / circulating VY   — coins actually held, net staker debt
+ *   projected   highest venue after VMMO spends  — each asset's book into its own
+ *               its whole book (Mainnet.tsx)       pool; NOT VBSO.projectedVyPrice()
+ *   market      sheet.usdPerVy                   — what VY trades at now
+ *   loan/VY     borrowUsdPerVy                   — what a VY posted as collateral lends
+ *   projected   undeployed book + today's        — what is still to be bought, and
+ *    buyback    arbitrage gap                      only that; nothing already settled
+ *   bought back bought back to date + held now   — the settled total, which only climbs
+ *                                                  (so it is a box, not a chart line)
  *
  * The projection is a MECHANICAL buy-pressure calculation, not a forecast: it
  * assumes zero opposing flow for the entire deploy window, and much of the
@@ -34,6 +38,12 @@ export type Floors = {
   /** Days until 99% of today's book has deployed — the horizon the projected price belongs to. */
   projectedDaysTo99: number | null;
   projectedError: string | null;
+  /** What the whole undeployed book would buy off the market once it deploys. */
+  burnProjectedVy: number | null;
+  /** What the arbitrage would buy in the public pool at today's gap to the DAX; 0 when there is none. */
+  burnArbVy: number | null;
+  /** What the buyback officers have bought back to date, plus what they hold right now. */
+  burnBoughtBackVy: number;
   hard: number;
   borrowUsdPerVy: number;
   ltvBps: number;
@@ -56,6 +66,9 @@ const fmtDays = (sec: number) => {
   return d >= 1 ? tr(`${d.toFixed(1)} days`, `${d.toFixed(1)} días`) : `${(sec / 3600).toFixed(1)} h`;
 };
 
+/** A VY quantity: whole tokens, because these are millions-scale counts. */
+const fmtVy = (n: number) => `${n.toLocaleString('en-US', { maximumFractionDigits: 0 })} VY`;
+
 const fmtUsd = (n: number, dp = 4) =>
   n >= 1000
     ? '$' + n.toLocaleString('en-US', { maximumFractionDigits: 0 })
@@ -65,7 +78,7 @@ export function BackingTiles({ floors }: { floors: Floors }) {
   return (
     <>
       <div className="vy-tiles">
-        <div className="vy-tile">
+        <div className="vy-tile vy-tile--tall">
           <div className="vy-tile__label">
             <span className="vy-swatch" style={{ background: 'var(--vy-series-1)' }} />
             {tr('Projected', 'Proyectado')}
@@ -119,10 +132,10 @@ export function BackingTiles({ floors }: { floors: Floors }) {
 
         <div className="vy-tile">
           <div className="vy-tile__label">
-            <span className="vy-swatch" style={{ background: 'var(--vy-series-2)' }} />
+            <span className="vy-swatch" style={{ background: 'var(--vy-green)' }} />
             {tr('Loan to VY value', 'Préstamo por valor de VY')}
           </div>
-          <div className="vy-tile__value" style={{ color: 'var(--vy-series-2)' }}>
+          <div className="vy-tile__value" style={{ color: 'var(--vy-green)' }}>
             {fmtUsd(floors.borrowUsdPerVy)}
           </div>
           <div className="vy-tile__hint">
@@ -139,6 +152,53 @@ export function BackingTiles({ floors }: { floors: Floors }) {
           </div>
         </div>
 
+        <div className="vy-tile">
+          <div className="vy-tile__label">
+            <span className="vy-swatch" style={{ background: 'var(--vy-series-2)' }} />
+            {tr('Projected VY Buyback', 'Recompra Proyectada de VY')}
+          </div>
+          <div className="vy-tile__value vy-tile__value--count" style={{ color: 'var(--vy-series-2)' }}>
+            {floors.burnProjectedVy === null && floors.burnArbVy === null
+              ? '—'
+              : fmtVy((floors.burnProjectedVy ?? 0) + (floors.burnArbVy ?? 0))}
+          </div>
+          <div className="vy-tile__hint">
+            {floors.burnProjectedVy === null
+              ? tr('the book is unavailable', 'el libro no está disponible')
+              : tr(
+                `${fmtVy(floors.burnProjectedVy)} the VMMO book will buy`,
+                `${fmtVy(floors.burnProjectedVy)} que comprará el libro de VMMO`,
+              )}
+            {' · '}
+            {floors.burnArbVy === null
+              ? tr('pool depth unavailable', 'profundidad de los pools no disponible')
+              : floors.burnArbVy > 0
+                ? tr(
+                  `${fmtVy(floors.burnArbVy)} the arbitrage will buy at today's gap to fair value`,
+                  `${fmtVy(floors.burnArbVy)} que comprará el arbitraje con la brecha actual al valor justo`,
+                )
+                : tr(
+                  'nothing from the arbitrage — the market is at or above fair value',
+                  'nada del arbitraje — el mercado está en o por encima del valor justo',
+                )}
+          </div>
+        </div>
+
+        <div className="vy-tile">
+          <div className="vy-tile__label">
+            <span className="vy-swatch" style={{ background: 'var(--vy-dex-gold)' }} />
+            {tr('Total VY Bought Back', 'Total de VY Recomprado')}
+          </div>
+          <div className="vy-tile__value vy-tile__value--count" style={{ color: 'var(--vy-dex-gold)' }}>
+            {fmtVy(floors.burnBoughtBackVy)}
+          </div>
+          <div className="vy-tile__hint">
+            {tr(
+              'bought back to date, plus what the buyback officers hold right now',
+              'recomprado hasta hoy, más lo que los oficiales de recompra mantienen ahora',
+            )}
+          </div>
+        </div>
       </div>
 
     </>

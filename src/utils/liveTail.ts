@@ -4,6 +4,15 @@ import { mainnet } from 'viem/chains';
 import { MAINNET_RPC_URL, RPC_HTTP_OPTS } from '../config';
 import { ERAS, VY_META, compareTrades, type Trade } from './priceHistory';
 import { fetchBenchmarkTail, type BenchmarkSample } from './benchmarks';
+import {
+  fetchVyOracleHead, fetchVyOracleTail, mergeVyOracleSamples, type VyOracleSample,
+} from './vyOracleHistory';
+import {
+  fetchVyProjectionHead, fetchVyProjectionTail, mergeVyProjectionSamples, type VyProjectionSample,
+} from './vyProjectionHistory';
+import {
+  fetchVyBuybackHead, fetchVyBuybackTail, mergeVyBuybackSamples, type VyBuybackSample,
+} from './vyBuybackHistory';
 
 /**
  * LIVE TAIL — everything the current VY/USDC pool has done since the committed snapshot, kept
@@ -137,11 +146,17 @@ export interface LiveTail {
   trades: Trade[];
   /** Reserve-asset prices since the committed benchmark snapshot. */
   benchmarks: BenchmarkSample[];
+  /** Three-treasury-pool VY/USD median since the committed oracle snapshot. */
+  vyOracle: VyOracleSample[];
+  vyProjection: VyProjectionSample[];
+  vyBuyback: VyBuybackSample[];
   /** The first catch-up has finished (or failed). Until then the page only has the snapshot. */
   settled: boolean;
 }
 
-const NONE: LiveTail = { trades: [], benchmarks: [], settled: false };
+const NONE: LiveTail = {
+  trades: [], benchmarks: [], vyOracle: [], vyProjection: [], vyBuyback: [], settled: false,
+};
 
 /**
  * Swaps and reserve-asset prices since the snapshots, growing as the pool trades.
@@ -168,9 +183,18 @@ export function useLiveTail(): LiveTail {
       const wasFirst = first;
       first = false;
       try {
-        const [swaps, bench] = await Promise.allSettled([
+        const [swaps, bench, oracle, projection, buyback] = await Promise.allSettled([
           era ? fetchSince(client, era, nextBlock) : Promise.resolve({ trades: [] as Trade[], lastBlock: nextBlock - 1n }),
           wasFirst ? fetchBenchmarkTail(client) : Promise.resolve([] as BenchmarkSample[]),
+          wasFirst
+            ? fetchVyOracleTail(client)
+            : fetchVyOracleHead(client).then((sample) => sample ? [sample] : []),
+          wasFirst
+            ? fetchVyProjectionTail(client)
+            : fetchVyProjectionHead(client).then((sample) => sample ? [sample] : []),
+          wasFirst
+            ? fetchVyBuybackTail(client)
+            : fetchVyBuybackHead(client).then((sample) => sample ? [sample] : []),
         ]);
         if (!active) return;
         if (swaps.status === 'fulfilled') nextBlock = swaps.value.lastBlock + 1n;
@@ -178,10 +202,21 @@ export function useLiveTail(): LiveTail {
           const fresh = swaps.status === 'fulfilled' ? swaps.value.trades : [];
           const trades = fresh.length ? [...prev.trades, ...fresh] : prev.trades;
           const benchmarks = bench.status === 'fulfilled' && bench.value.length ? bench.value : prev.benchmarks;
+          const vyOracle = oracle.status === 'fulfilled'
+            ? mergeVyOracleSamples(prev.vyOracle, oracle.value)
+            : prev.vyOracle;
+          const vyProjection = projection.status === 'fulfilled'
+            ? mergeVyProjectionSamples(prev.vyProjection, projection.value)
+            : prev.vyProjection;
+          const vyBuyback = buyback.status === 'fulfilled'
+            ? mergeVyBuybackSamples(prev.vyBuyback, buyback.value)
+            : prev.vyBuyback;
           const settled = prev.settled || wasFirst;
-          return trades === prev.trades && benchmarks === prev.benchmarks && settled === prev.settled
+          return trades === prev.trades && benchmarks === prev.benchmarks &&
+            vyOracle === prev.vyOracle && vyProjection === prev.vyProjection &&
+            vyBuyback === prev.vyBuyback && settled === prev.settled
             ? prev
-            : { trades, benchmarks, settled };
+            : { trades, benchmarks, vyOracle, vyProjection, vyBuyback, settled };
         });
       } finally {
         busy = false;
