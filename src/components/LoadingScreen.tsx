@@ -6,9 +6,12 @@ import vPoster from '../assets/v-poster.webp?inline';
 import { tr } from '../utils/i18n';
 
 /**
- * The full-screen cover the page opens behind. Everything mounts and loads underneath it, so when
- * it lifts the chart is already drawn and the balance sheet already filled — the page appears at
- * once instead of piece by piece.
+ * The loading scene for the part of the monitor that is still arriving.
+ *
+ * `inline` is how the page uses it: it sits in the flow under the price chart, holding the space
+ * the balance sheet will take, because the chart and the tape draw from the bundle immediately
+ * and have no reason to wait behind a cover for the ~15s of RPC round trips below them. Without
+ * `inline` it is the full-screen cover it used to be, and locks scrolling while it shows.
  *
  * The centrepiece is the website's metallic Ethereum, floating, with the website's small 3D
  * Valinity V (the same Three.js scene as valinity.io) spinning as it orbits it. Until the 3D scene
@@ -23,7 +26,7 @@ const TILT_COS = Math.cos(TILT);
 const TILT_SIN = Math.sin(TILT);
 const FLOAT_MS = 4200;
 
-export function LoadingScreen({ done = false }: { done?: boolean }) {
+export function LoadingScreen({ done = false, inline = false }: { done?: boolean; inline?: boolean }) {
   const [seconds, setSeconds] = useState(() => performance.now() / 1000);
   const [gone, setGone] = useState(false);
   const [webgl, setWebgl] = useState(false);
@@ -38,13 +41,14 @@ export function LoadingScreen({ done = false }: { done?: boolean }) {
     return () => clearInterval(t);
   }, [done]);
 
-  // The page behind must not scroll while it is covered.
+  // The page behind must not scroll while it is covered. In flow it covers nothing, so it must
+  // not touch scrolling at all.
   useEffect(() => {
-    if (gone) return;
+    if (gone || inline) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => { document.body.style.overflow = prev; };
-  }, [gone]);
+  }, [gone, inline]);
 
   // Removed after the fade, so it never sits invisibly on top of the page.
   useEffect(() => {
@@ -109,7 +113,7 @@ export function LoadingScreen({ done = false }: { done?: boolean }) {
   if (gone) return null;
 
   return (
-    <div className={`vy-loader${done ? ' vy-loader--done' : ''}`} role="status" aria-live="polite" aria-busy={!done}>
+    <div className={`vy-loader${inline ? ' vy-loader--inline' : ''}${done ? ' vy-loader--done' : ''}`} role="status" aria-live="polite" aria-busy={!done}>
       <div className="vy-loader__inner">
         <div ref={stageRef} className="vy-loader__stage" aria-hidden="true">
           <img ref={ethRef} className="vy-loader__eth" src={ethMetal} alt="" draggable={false} />

@@ -41,7 +41,10 @@ interface TVPriceScale {
   /** PriceScaleMode: 0 = normal (linear), 1 = logarithmic. */
   setMode?: (mode: number) => void;
 }
-interface TVPane { getMainSourcePriceScale: () => TVPriceScale | null }
+interface TVPane {
+  getMainSourcePriceScale: () => TVPriceScale | null;
+  setHeight?: (height: number) => void;
+}
 interface TVStudyApi { isVisible: () => boolean; setVisible: (visible: boolean) => void }
 interface TVChartApi {
   setVisibleRange: (r: { from: number; to: number }) => Promise<void> | void;
@@ -126,6 +129,11 @@ export interface ChartOverlay {
 
 /** Price scale the chart opens on: true = logarithmic, false = linear. */
 const LOG_SCALE = true;
+
+// How much of the chart a study's own panel takes when it opens: about two grid squares, which
+// leaves the candles the height they had before the panel existed. The viewer can still drag the
+// divider — this is only where it starts.
+const OWN_PANE_SHARE = 0.17;
 
 /**
  * The price range a chosen window should open on: every trade inside it, plus each overlay read
@@ -433,8 +441,9 @@ export function PriceChart({
             : windowPriceBand(trades, first, last, overlaysRef.current);
           // The buyback panel counts VY in the millions and its area plots fill from zero, so
           // autoscale would open on 0…1.13M and squash the part that actually moves into a
-          // sliver. Fit that panel to the band its series occupies. Runs after the study exists —
-          // the panel is not there until then.
+          // sliver. Fit that panel to the band its series occupies, and open it two grid squares
+          // tall — a footnote under the candles rather than a third of the chart. Runs after the
+          // study exists — the panel is not there until then.
           const fitOwnPanes = () => {
             const chart = widget?.activeChart();
             if (!chart) return;
@@ -455,7 +464,12 @@ export function PriceChart({
               }
               if (!(hi > 0) || !Number.isFinite(lo)) continue;
               try {
-                const scale = chart.getPanes?.()[paneIndex]?.getMainSourcePriceScale();
+                const pane = chart.getPanes?.()[paneIndex];
+                // Height from the container, not the `height` prop, so the effect keeps its
+                // existing dependencies — and so a panel is sized against what is on screen.
+                const box = containerRef.current?.clientHeight ?? 0;
+                if (box > 0) pane?.setHeight?.(Math.round(box * OWN_PANE_SHARE));
+                const scale = pane?.getMainSourcePriceScale();
                 scale?.setAutoScale?.(false);
                 scale?.setVisiblePriceRange?.({ from: lo * 0.97, to: hi * 1.03 });
               } catch {

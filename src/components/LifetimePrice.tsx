@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLiveTail } from '../utils/liveTail';
-import { LOAD_LIMIT_MS } from '../utils/loadLimit';
 import { PriceChart, type ChartOverlay } from './PriceChart';
 import { TradeTape } from './TradeTape';
 import {
@@ -32,9 +31,12 @@ import { DATE_LOCALE, tr } from '../utils/i18n';
  * numbers the page exists to compare the market price against. (The BTC/ETH/gold comparisons were
  * removed: valinity.io already shows that comparison.)
  *
- * THE FIRST FRAME IS THE PRESENT. History ships in the bundle, but the bundle is only as current
- * as its last build, so the section waits for the live catch-up (useLiveTail) before drawing.
- * The page's loading screen covers that wait and lifts once `onReady` reports the chart drawn.
+ * IT DRAWS ON THE FIRST FRAME. History ships in the bundle, so the chart and the tape are on
+ * screen in about a second, and the live catch-up (useLiveTail) streams into the same chart a
+ * few seconds later — TradingView takes the new candles through the datafeed, so nothing is
+ * rebuilt and the viewer's zoom survives. Until it lands, the newest candle and the price stat
+ * are as recent as the last deploy. The rest of the monitor loads underneath, behind its own
+ * loading screen, rather than holding this section back.
  */
 
 const LIVE_ERA: EraId = 'vy-current';
@@ -49,7 +51,7 @@ type View = 'live' | 'genesis';
 
 // A view's own resolution applies on "All": WEEKLY for both — ~23 candles for the current pool,
 // ~230 for the lineage (at daily the lineage would be 1,600 sub-pixel candles that read as a line).
-// The current pool actually opens on 3M, whose daily candles come from RANGES.
+// The current pool actually opens on 30D, whose daily candles come from RANGES.
 const VIEWS: Record<View, { symbol: string; exchange: string; resolution: string; sub: string }> = {
   live: {
     symbol: 'VY', exchange: 'Uniswap V2', resolution: '1W',
@@ -66,7 +68,7 @@ type RangeKey = '30d' | '3m' | '6m' | '12m' | 'all';
 
 // Each range opens at a resolution that gives its candles real width; "All" keeps the view's own.
 const RANGES: { key: RangeKey; label: string; resolution?: string }[] = [
-  { key: '30d', label: '30D', resolution: '240' },
+  { key: '30d', label: '30D', resolution: '1D' },
   { key: '3m', label: '3M', resolution: '1D' },
   { key: '6m', label: '6M', resolution: '1D' },
   { key: '12m', label: '12M', resolution: '1D' },
@@ -117,18 +119,18 @@ const LINES_ON: Record<string, boolean> = {
   [FAIR_VALUE_ID]: true, [PROJECTED_ID]: true, [FUTURE_ID]: true,
 };
 
-function Stat({ label, value }: { label: string; value: string }) {
+function Stat({ label, value, lead }: { label: string; value: string; lead?: boolean }) {
   return (
-    <div>
+    <div className={lead ? 'vy-price__stat vy-price__stat--lead' : 'vy-price__stat'}>
       <div className="vy-price__stat-label">{label}</div>
       <div className="vy-price__stat-value">{value}</div>
     </div>
   );
 }
 
-// Each view's opening range: the current pool opens on its last three months (daily candles);
-// Since Genesis opens on the whole history, which is the point of that view.
-const DEFAULT_RANGE: Record<View, RangeKey> = { live: '3m', genesis: 'all' };
+// Each view's opening range: the current pool opens on the last 30 days at daily candles — 30
+// candles, one per day; Since Genesis opens on the whole history, which is the point of that view.
+const DEFAULT_RANGE: Record<View, RangeKey> = { live: '30d', genesis: 'all' };
 const openingRange = (v: View) => ({ key: DEFAULT_RANGE[v], from: rangeStart(DEFAULT_RANGE[v], Date.now()) });
 
 export function LifetimePrice({ onReady }: { onReady?: () => void }) {
@@ -140,14 +142,6 @@ export function LifetimePrice({ onReady }: { onReady?: () => void }) {
   const [linesOn, setLinesOn] = useState<Record<string, boolean>>(LINES_ON);
   const snapshot = useMemo(() => loadAllTrades(), []);
   const tail = useLiveTail();
-
-  // Past the load limit, draw from the snapshot; the live catch-up streams into that same chart.
-  const [waited, setWaited] = useState(false);
-  useEffect(() => {
-    const timer = setTimeout(() => setWaited(true), LOAD_LIMIT_MS);
-    return () => clearTimeout(timer);
-  }, []);
-  const ready = tail.settled || waited;
 
   // The committed snapshot plus everything since. The flash-loan filter runs again over the live
   // pool's merged trades, so a manipulation that happens after the snapshot is dropped too. The
@@ -297,7 +291,7 @@ export function LifetimePrice({ onReady }: { onReady?: () => void }) {
           <div className="vy-price__sub">{cfg.sub}</div>
         </div>
         <div className="vy-price__controls">
-          {ready && <span className="vy-price__sub">{fmtDate(start.ts)} → {fmtDate(chartEndTs)}</span>}
+          {<span className="vy-price__sub">{fmtDate(start.ts)} → {fmtDate(chartEndTs)}</span>}
           <div className="vy-price__ranges" role="group" aria-label={tr('Time range', 'Rango de tiempo')}>
             {RANGES.map((r) => (
               <button
@@ -328,15 +322,13 @@ export function LifetimePrice({ onReady }: { onReady?: () => void }) {
         </div>
       </div>
 
-      {!ready ? (
-        <div className="vy-price__loading" aria-busy="true">{tr('Loading the live pool from Ethereum…', 'Cargando el pool en vivo desde Ethereum…')}</div>
-      ) : (
-        <>
+      <>
           <div className="vy-price__stats">
             <Stat label={tr('First price', 'Primer precio')} value={fmtPrice(first.price)} />
-            <Stat label={tr('Price', 'Precio')} value={fmtPrice(last.price)} />
             <Stat label={tr('All-time low', 'Mínimo histórico')} value={fmtPrice(low)} />
             <Stat label={tr('All-time high', 'Máximo histórico')} value={fmtPrice(high)} />
+            {/* Last and largest: the three around it are history, this is the price now. */}
+            <Stat label={tr('Price', 'Precio')} value={fmtPrice(last.price)} lead />
           </div>
 
           {overlays.length > 0 && (
@@ -408,8 +400,7 @@ export function LifetimePrice({ onReady }: { onReady?: () => void }) {
                 'Los montos están en el token de cada era — MFC en BNB Chain, VY en Ethereum — y enlazan al explorador de esa red.')
               : undefined}
           />
-        </>
-      )}
+      </>
     </div>
   );
 }

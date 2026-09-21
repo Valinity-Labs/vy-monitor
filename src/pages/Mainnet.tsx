@@ -1,7 +1,7 @@
 import flatten from 'lodash/flatten';
 import omit from 'lodash/omit';
 import startCase from 'lodash/startCase';
-import { useCallback, useEffect, useState, type JSX } from 'react';
+import { useEffect, useState, type JSX } from 'react';
 import { createPublicClient, http, parseAbiItem, type Address } from 'viem';
 import { mainnet } from 'viem/chains';
 import { Value } from '../components/core';
@@ -1291,18 +1291,16 @@ export default function Mainnet({ onLoaded }: { onLoaded?: () => void }) {
   const [volProgress, setVolProgress] = useState<FlowProgress | null>(null);
   const [holders, setHolders] = useState<number | null>(null);
 
-  // The loading screen lifts as soon as the PRICE CHART has drawn — about 3s, against the ~9s the
-  // balance sheet needs for its 50-odd round trips. The sheet is below the fold and fills in
-  // underneath with its own quiet line, so waiting for it only kept the reader staring at a cover.
-  // Past LOAD_LIMIT_MS the screen lifts regardless, so a slow RPC never covers the page forever.
-  const [chartReady, setChartReady] = useState(false);
-  const onChartReady = useCallback(() => setChartReady(true), []);
+  // The loading scene no longer covers the page — it sits under the price section, holding the
+  // balance sheet's space until the sheet's own data lands (~15s of round trips). Past
+  // LOAD_LIMIT_MS it gives up and the quiet text placeholder below takes over with the clock and
+  // the diagnostics, so a slow or dead RPC is never just an animation spinning forever.
   const [overLimit, setOverLimit] = useState(false);
   useEffect(() => {
     const t = setTimeout(() => setOverLimit(true), Math.max(0, LOAD_LIMIT_MS - performance.now()));
     return () => clearTimeout(t);
   }, []);
-  const loaded = chartReady || overLimit;
+  const loaded = data !== null || overLimit;
   useEffect(() => { if (loaded) onLoaded?.(); }, [loaded, onLoaded]);
 
   useEffect(() => {
@@ -1374,7 +1372,7 @@ export default function Mainnet({ onLoaded }: { onLoaded?: () => void }) {
   const body = error && !data
     ? <p style={{ textAlign: 'center', color: 'red' }}>Error: {error}</p>
     : !data
-      ? (
+      ? !overLimit ? null : (
         <p style={{ textAlign: 'center', opacity: 0.8 }}>
           {tr('Loading on-chain data…', 'Cargando datos on-chain…')} {elapsed}s
           {elapsed > 40 && (
@@ -1419,7 +1417,7 @@ export default function Mainnet({ onLoaded }: { onLoaded?: () => void }) {
 
   return (
     <>
-      <LifetimePrice onReady={onChartReady} />
+      <LifetimePrice />
       {body}
     </>
   );

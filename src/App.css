@@ -839,6 +839,20 @@ th {
   color: var(--vy-ink-1);
 }
 
+/* PRICE, last in the row and the one number a visitor came for: set large enough to be read
+   before the three historical marks beside it. */
+.vy-price__stat--lead { margin-left: auto; text-align: right; }
+.vy-price__stat--lead .vy-price__stat-value {
+  font-size: 1.9rem;
+  line-height: 1.1;
+  margin-top: -0.15rem;
+}
+
+@media (max-width: 40rem) {
+  .vy-price__stat--lead { margin-left: 0; text-align: left; }
+  .vy-price__stat--lead .vy-price__stat-value { font-size: 1.5rem; }
+}
+
 /* Key for the reserve-asset lines: each one's return since the pool's first trade, drawn in
    its line's colour. */
 .vy-price__bench {
@@ -992,6 +1006,23 @@ th {
 
 .vy-loader--done { opacity: 0; pointer-events: none; }
 
+/* In flow, under the price section: the scene holds the space the balance sheet will fill, while
+   the chart and the tape above it are already live. A panel tint rather than the full-bleed
+   black/white, because the page around it is visible. */
+.vy-loader--inline {
+  position: static;
+  z-index: auto;
+  min-height: 26rem;
+  margin: 1.5rem 0 2rem;
+  border-radius: 0.6rem;
+  background: rgba(127, 127, 127, 0.07);
+}
+
+.vy-loader--inline .vy-loader__stage { width: min(11rem, 44vw); }
+.vy-loader--inline .vy-loader__inner { gap: 0.9rem; }
+.vy-loader--inline .vy-loader__clock { font-size: clamp(1.5rem, 6vw, 2.1rem); }
+.vy-loader--inline .vy-loader__title { font-size: clamp(0.85rem, 3vw, 1.05rem); }
+
 .vy-loader__inner {
   display: flex;
   flex-direction: column;
@@ -1099,18 +1130,6 @@ th {
 
 @media (prefers-reduced-motion: reduce) {
   .vy-loader__blocks span { animation: none; opacity: 1; }
-}
-
-/* Held for the moment the page waits for the live pool, so the chart's first frame is the present. */
-.vy-price__loading {
-  min-height: 38.75rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.72rem;
-  color: var(--vy-ink-3);
-  border-radius: 0.5rem;
-  background: rgba(127, 127, 127, 0.06);
 }
 
 .vy-chart {
