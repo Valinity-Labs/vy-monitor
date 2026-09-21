@@ -3,7 +3,7 @@
  "chain": "ethereum",
  "chainId": 1,
  "symbol": "VY",
- "builtAtBlock": 26029060,
+ "builtAtBlock": 26029200,
  "eras": [
   {
    "id": "vy-legacy",
@@ -40,7 +40,7 @@
    },
    "decimals": 18,
    "scannedFrom": 24867746,
-   "scannedTo": 26029060,
+   "scannedTo": 26029200,
    "live": true,
    "cutoffReason": null,
    "tradeCount": 1746,

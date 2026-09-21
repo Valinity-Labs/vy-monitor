@@ -130,10 +130,10 @@ export interface ChartOverlay {
 /** Price scale the chart opens on: true = logarithmic, false = linear. */
 const LOG_SCALE = true;
 
-// How much of the chart a study's own panel takes when it opens: about two grid squares, which
-// leaves the candles the height they had before the panel existed. The viewer can still drag the
-// divider — this is only where it starts.
-const OWN_PANE_SHARE = 0.17;
+// How much of the chart a study's own panel takes when it opens: a slim strip under the candles,
+// two grid squares tall, leaving the price the rest. The viewer can still drag the divider — this
+// is only where it starts.
+const OWN_PANE_SHARE = 0.12;
 
 /**
  * The price range a chosen window should open on: every trade inside it, plus each overlay read

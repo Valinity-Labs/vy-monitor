@@ -14,6 +14,31 @@
       if (t !== 'light' && t !== 'dark') t = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
       document.documentElement.dataset.theme = t;
     })();
+
+    // STALE-HTML GUARD. Every deploy replaces the site, so the previous build's hashed files are
+    // DELETED. A phone holding this page in its cache then asks for scripts that 404 and shows a
+    // blank page with nothing running to fix it — which is what a black monitor on a phone is.
+    // This is inline, so it runs from the cached copy itself: on a failed script or stylesheet,
+    // or if nothing has mounted after 8s, reload once. main.tsx clears the flag once the app is
+    // up, so the next stale load can heal itself too.
+    (function () {
+      var KEY = 'vy-stale-reload';
+      function heal() {
+        try {
+          if (sessionStorage.getItem(KEY)) return;
+          sessionStorage.setItem(KEY, '1');
+        } catch (e) { return; }   // no sessionStorage: never risk a reload loop
+        location.reload();
+      }
+      addEventListener('error', function (e) {
+        var el = e.target;
+        if (el && (el.tagName === 'SCRIPT' || el.tagName === 'LINK')) heal();
+      }, true);
+      setTimeout(function () {
+        var root = document.getElementById('root');
+        if (root && !root.children.length) heal();
+      }, 8000);
+    })();
   </script>
 </head>
 
