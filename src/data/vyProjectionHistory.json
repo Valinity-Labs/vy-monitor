@@ -23,7 +23,7 @@
   "startBlockReason": "first block with a VMMO to read — books() reverts one block earlier, and the pools, pair and oracle all predate it"
  },
  "stride": 1800,
- "builtAtBlock": 26029207,
+ "builtAtBlock": 26034186,
  "rejectedSampleCount": 0,
  "rejected": [],
  "samples": [
@@ -994,9 +994,21 @@
    "pool": "WETH"
   },
   {
-   "block": 26029207,
-   "ts": 1790033891,
-   "price": 9.826750063824,
+   "block": 26030690,
+   "ts": 1790051831,
+   "price": 10.344614653134,
+   "pool": "WETH"
+  },
+  {
+   "block": 26032490,
+   "ts": 1790073623,
+   "price": 10.365436630505,
+   "pool": "WETH"
+  },
+  {
+   "block": 26034186,
+   "ts": 1790094095,
+   "price": 10.356112400274,
    "pool": "WETH"
   }
  ]

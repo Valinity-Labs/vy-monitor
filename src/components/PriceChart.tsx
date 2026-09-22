@@ -92,8 +92,9 @@ function loadLibrary(): Promise<void> {
 export interface ChartOverlay {
   id: string;
   label: string;
+  /** ONE colour per line, in both themes — a line that changes colour with the theme reads as a
+   *  different line. Pick values that carry on white and on black. */
   color: string;
-  colorLight: string;
   /** TradingView line width. The default comparison lines use 2; the DEX median uses 3. */
   lineWidth?: number;
   /**
@@ -106,7 +107,6 @@ export interface ChartOverlay {
    * wash, while the line itself can be brighter than anything it is drawn over.
    */
   lineColor?: string;
-  lineColorLight?: string;
   /** Keep a reference line visible and prevent the study from being edited or removed. */
   alwaysVisible?: boolean;
   locked?: boolean;
@@ -180,7 +180,7 @@ interface TVPineJS {
  */
 function overlayIndicator(
   PineJS: TVPineJS, o: ChartOverlay, valueAt: (ms: number) => number,
-  closeAt: (period: string, barMs: number) => number, light: boolean,
+  closeAt: (period: string, barMs: number) => number,
   baseAt: (ms: number) => number = () => NaN
 ) {
   const area = o.plotType === 'area';
@@ -213,7 +213,7 @@ function overlayIndicator(
               // The TOTAL: a solid stroke, the brighter of the two.
               linestyle: 0, linewidth: o.lineWidth ?? 2, plottype: 0, trackPrice: false,
               transparency: 0, visible: true,
-              color: light ? (o.lineColorLight ?? o.colorLight) : (o.lineColor ?? o.color),
+              color: o.lineColor ?? o.color,
             }
             : area
             ? {
@@ -221,12 +221,12 @@ function overlayIndicator(
               // so it never reaches the legend, the data window or the price scale.
               linestyle: 0, linewidth: 1, plottype: 4, trackPrice: false,
               transparency: 82, visible: true, display: 1,
-              color: light ? o.colorLight : o.color,
+              color: o.color,
             }
             : {
               linestyle: 0, linewidth: o.lineWidth ?? 2, plottype: 0, trackPrice: false,
               transparency: 0, visible: true,
-              color: light ? o.colorLight : o.color,
+              color: o.color,
             },
           ...(stacked ? {
             plot_1: {
@@ -234,13 +234,13 @@ function overlayIndicator(
               // projection.
               linestyle: 0, linewidth: o.lineWidth ?? 2, plottype: 0, trackPrice: false,
               transparency: 0, visible: true,
-              color: light ? o.colorLight : o.color,
+              color: o.color,
             },
           } : area ? {
             plot_1: {
               linestyle: 0, linewidth: o.lineWidth ?? 2, plottype: 0, trackPrice: false,
               transparency: 0, visible: true,
-              color: light ? (o.lineColorLight ?? o.colorLight) : (o.lineColor ?? o.color),
+              color: o.lineColor ?? o.color,
             },
           } : {}),
         },
@@ -406,7 +406,7 @@ export function PriceChart({
             Promise.resolve(specs.map((o) => overlayIndicator(
               PineJS, o,
               (ms) => overlaysRef.current.find((x) => x.id === o.id)?.valueAt(ms) ?? NaN,
-              closeAt, light,
+              closeAt,
               (ms) => overlaysRef.current.find((x) => x.id === o.id)?.baseValueAt?.(ms) ?? NaN,
             ))),
           // The overlay indicators read this component's data through their closures, which a

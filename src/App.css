@@ -183,11 +183,14 @@ th {
   --vy-ink-2: rgba(255, 255, 255, 0.62);
   --vy-ink-3: rgba(255, 255, 255, 0.38);
   --vy-rule: rgba(255, 255, 255, 0.12);
-  /* Reserve-asset lines on the price chart — mirror BENCHMARKS in src/utils/benchmarks.ts. */
+  /* Reserve-asset lines on the price chart — mirror BENCHMARKS in src/utils/benchmarks.ts.
+     The study colours below (and --vy-proj-blue / --vy-future-orange on the chips) are
+     deliberately NOT redefined for the light theme: a line that changes colour with the theme
+     reads as a different line. See ChartOverlay in PriceChart.tsx. */
   --vy-bench-btc: #F7931A;
   --vy-bench-eth: #A3A3A3;
   --vy-bench-xau: #FFD60A;
-  --vy-dex-gold: #e5c983;
+  --vy-dex-gold: #c9a227;
   /* Borrowing against VY — its own colour so the sheet's oranges mean one thing each.
      The tape's buy green, which is the page's other "this is money you get" colour. */
   --vy-green: #62d98a;
@@ -204,7 +207,6 @@ th {
   --vy-rule: rgba(0, 0, 0, 0.14);
   --vy-bench-eth: #737373;
   --vy-bench-xau: #D4A106;
-  --vy-dex-gold: #9a6a20;
   --vy-green: #157f3b;
 }
 
@@ -903,37 +905,35 @@ th {
 
 /* Projection: the chip wears the line's own neon blue, as the DEX median wears its gold. */
 .vy-price__bench-projected {
-  --vy-proj-blue: #59d7ff;
+  --vy-proj-blue: #22a7e0;
   --vy-chip: var(--vy-proj-blue);
   padding: 0.2rem 0.7rem;
 }
 
 .vy-price__bench-projected strong { color: var(--vy-proj-blue); }
 
-:where(:root[data-theme="light"]) .vy-price__bench-projected { --vy-proj-blue: #1273d4; }
 
 .vy-price__bench-swatch--projected {
   width: 1.15rem;
   height: 3px;
-  background: var(--vy-proj-blue, #59d7ff);
-  box-shadow: 0 0 0.45rem color-mix(in srgb, var(--vy-proj-blue, #59d7ff) 72%, transparent);
+  background: var(--vy-proj-blue, #22a7e0);
+  box-shadow: 0 0 0.45rem color-mix(in srgb, var(--vy-proj-blue, #22a7e0) 72%, transparent);
 }
 
 .vy-price__bench-future {
-  --vy-future-orange: #ffb066;
+  --vy-future-orange: #ef7a2a;
   --vy-chip: var(--vy-future-orange);
   padding: 0.2rem 0.7rem;
 }
 
 .vy-price__bench-future strong { color: var(--vy-future-orange); }
 
-:where(:root[data-theme="light"]) .vy-price__bench-future { --vy-future-orange: #c2410c; }
 
 .vy-price__bench-swatch--future {
   width: 1.15rem;
   height: 3px;
-  background: var(--vy-future-orange, #ffb066);
-  box-shadow: 0 0 0.45rem color-mix(in srgb, var(--vy-future-orange, #ffb066) 72%, transparent);
+  background: var(--vy-future-orange, #ef7a2a);
+  box-shadow: 0 0 0.45rem color-mix(in srgb, var(--vy-future-orange, #ef7a2a) 72%, transparent);
 }
 
 .vy-price__bench-swatch--oracle {

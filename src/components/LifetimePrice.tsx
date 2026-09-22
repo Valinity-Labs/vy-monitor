@@ -214,8 +214,7 @@ export function LifetimePrice({ onReady }: { onReady?: () => void }) {
     return [{
       id: FAIR_VALUE_ID,
       label: FAIR_VALUE_LABEL,
-      color: '#e5c983',
-      colorLight: '#9a6a20',
+      color: '#c9a227',
       lineWidth: 3,
       locked: true,
       valueAt: (ms: number) => vyOraclePriceAt(oracleSamples, ms),
@@ -223,13 +222,11 @@ export function LifetimePrice({ onReady }: { onReady?: () => void }) {
       id: PROJECTED_ID,
       label: PROJECTED_LABEL,
       color: '#4d8ff5',
-      colorLight: '#2a78d6',
       lineWidth: 2,
       plotType: 'area',
       // The wash stays the quiet blue; the stroke on top is brighter, so the line reads against
       // its own shading.
-      lineColor: '#59d7ff',
-      lineColorLight: '#1273d4',
+      lineColor: '#22a7e0',
       locked: true,
       valueAt: (ms: number) => vyProjectionPriceAt(projectionSamples, ms),
     }, {
@@ -240,9 +237,7 @@ export function LifetimePrice({ onReady }: { onReady?: () => void }) {
       baseLabel: tr('Future buyback VY', 'Recompra futura VY'),
       // Deeper orange for the VY line, bright for the dollars.
       color: '#c2410c',
-      colorLight: '#9a3412',
-      lineColor: '#ffb066',
-      lineColorLight: '#c2410c',
+      lineColor: '#ef7a2a',
       lineWidth: 2,
       pane: 'own',
       format: 'volume',
