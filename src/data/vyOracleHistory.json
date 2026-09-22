@@ -16,7 +16,7 @@
   "encoding": "UQ112x112 VY-wei per USDC-wei"
  },
  "stride": 1200,
- "builtAtBlock": 26034186,
+ "builtAtBlock": 26036368,
  "rejectedSampleCount": 0,
  "rejected": [],
  "samples": [
@@ -1996,9 +1996,14 @@
    "price": 1.080611042839
   },
   {
-   "block": 26034186,
-   "ts": 1790094095,
-   "price": 1.080805149427
+   "block": 26035237,
+   "ts": 1790106791,
+   "price": 1.090817929919
+  },
+  {
+   "block": 26036368,
+   "ts": 1790120447,
+   "price": 1.092463527386
   }
  ]
 }

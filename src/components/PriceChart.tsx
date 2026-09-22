@@ -46,12 +46,16 @@ interface TVPane {
   setHeight?: (height: number) => void;
 }
 interface TVStudyApi { isVisible: () => boolean; setVisible: (visible: boolean) => void }
+interface TVSeriesApi { setVisible: (visible: boolean) => void }
 interface TVChartApi {
   setVisibleRange: (r: { from: number; to: number }) => Promise<void> | void;
   onDataLoaded?: () => TVSubscription;
   getPanes?: () => TVPane[];
   createStudy?: (name: string, forceOverlay?: boolean, lock?: boolean) => Promise<unknown>;
   getStudyById?: (id: unknown) => TVStudyApi;
+  /** The candles themselves — switchable like any other series. */
+  getSeries?: () => TVSeriesApi | null;
+  getAllStudies?: () => { id: unknown; name: string }[];
 }
 interface TVWidget {
   onChartReady: (cb: () => void) => void;
@@ -141,14 +145,16 @@ const OWN_PANE_SHARE = 0.12;
  * smooth curves, so 64 reads find their extremes.
  */
 function windowPriceBand(
-  trades: Trade[], from: number, to: number, overlays: ChartOverlay[]
+  trades: Trade[], from: number, to: number, overlays: ChartOverlay[], withCandles = true
 ): { from: number; to: number } | null {
   let lo = Infinity;
   let hi = 0;
-  for (const t of trades) {
-    if (t.ts < from || t.ts > to || !(t.price > 0)) continue;
-    if (t.price < lo) lo = t.price;
-    if (t.price > hi) hi = t.price;
+  if (withCandles) {
+    for (const t of trades) {
+      if (t.ts < from || t.ts > to || !(t.price > 0)) continue;
+      if (t.price < lo) lo = t.price;
+      if (t.price > hi) hi = t.price;
+    }
   }
   const step = (to - from) / 64;
   for (const o of overlays) {
@@ -270,7 +276,7 @@ function overlayIndicator(
 
 export function PriceChart({
   trades, seriesKey, symbol, exchange, resolution = DEFAULT_RES, overlays = NO_OVERLAYS, visibleFrom,
-  overlayVisible = NO_VISIBLE, onOverlayToggle, onReady, height = 460,
+  overlayVisible = NO_VISIBLE, onOverlayToggle, onReady, height = 460, priceVisible = true,
 }: {
   /** Called once the widget has drawn (or failed to), so the page can lift its loading screen. */
   onReady?: () => void;
@@ -289,6 +295,13 @@ export function PriceChart({
   /** Open on the window from this unix-seconds instant to the last trade; omit for all history. */
   visibleFrom?: number;
   height?: number;
+  /**
+   * Draw the candles. Switched off, the pool is STILL the chart's subject — its symbol, its price
+   * scale, its tape — and only the reference lines are drawn on it. The scale refits to whatever
+   * is left, so a single line uses the whole pane instead of hugging the floor of a band that was
+   * sized for something no longer on screen.
+   */
+  priceVisible?: boolean;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
@@ -323,6 +336,10 @@ export function PriceChart({
   // keeps the viewer's zoom. The widget effect reads these refs when it creates the studies.
   const studiesRef = useRef(new Map<string, TVStudyApi>());
   const visibleRef = useRef(overlayVisible);
+  const priceVisibleRef = useRef(priceVisible);
+  // Set by the widget effect while a chart is up: applies the candles' visibility and refits the
+  // price scale to what is actually drawn. Null between widgets.
+  const applyRef = useRef<(() => void) | null>(null);
   const toggleRef = useRef(onOverlayToggle);
   const readyRef = useRef(onReady);
   useEffect(() => {
@@ -338,7 +355,14 @@ export function PriceChart({
         studiesRef.current.delete(id); // removed from the legend by the viewer
       }
     }
+    // A line switched off should give its room back rather than leave the scale sized for it.
+    applyRef.current?.();
   }, [overlayVisible, onOverlayToggle, onReady]);
+
+  useEffect(() => {
+    priceVisibleRef.current = priceVisible;
+    applyRef.current?.();
+  }, [priceVisible]);
 
   // Which overlays exist decides the studies to create; their data can change without a rebuild.
   const overlayKey = overlays.map((o) => o.id).join(',');
@@ -436,9 +460,19 @@ export function PriceChart({
           // in; a chosen window opens on what is IN that window — candles AND the reference lines,
           // because an area plot's fill reaches toward zero and would otherwise drag a log scale
           // down to 0.00001 and flatten every candle against the top.
-          const band = visibleFrom === undefined
-            ? openingPriceBand(trades)
-            : windowPriceBand(trades, first, last, overlaysRef.current);
+          // What the scale fits: the candles when they are drawn, plus the reference lines that
+          // are switched on. Recomputed on every visibility change, not just at open.
+          const priceBand = () => {
+            const onScreen = overlaysRef.current.filter(
+              (o) => o.pane !== 'own' && (o.alwaysVisible || visibleRef.current[o.id]),
+            );
+            if (!priceVisibleRef.current) {
+              return windowPriceBand(tradesRef.current, first, last, onScreen, false);
+            }
+            return visibleFrom === undefined
+              ? openingPriceBand(tradesRef.current)
+              : windowPriceBand(tradesRef.current, first, last, onScreen);
+          };
           // The buyback panel counts VY in the millions and its area plots fill from zero, so
           // autoscale would open on 0…1.13M and squash the part that actually moves into a
           // sliver. Fit that panel to the band its series occupies, and open it two grid squares
@@ -478,6 +512,20 @@ export function PriceChart({
             }
           };
 
+          const fitPriceScale = () => {
+            const chart = widget?.activeChart();
+            const band = priceBand();
+            if (!chart || !band) return;
+            try {
+              const scale = chart.getPanes?.()[0]?.getMainSourcePriceScale();
+              // Autoscale would immediately refit to the full extent, spike included.
+              scale?.setAutoScale?.(false);
+              scale?.setVisiblePriceRange?.(band);
+            } catch {
+              /* the full range stays reachable by zooming out */
+            }
+          };
+
           const snap = () => {
             const chart = widget?.activeChart();
             if (!chart) return;
@@ -499,16 +547,25 @@ export function PriceChart({
             } catch {
               /* the chart's own log button still works */
             }
-            if (band) {
-              try {
-                const scale = chart.getPanes?.()[0]?.getMainSourcePriceScale();
-                // Autoscale would immediately refit to the full extent, spike included.
-                scale?.setAutoScale?.(false);
-                scale?.setVisiblePriceRange?.(band);
-              } catch {
-                /* the full range stays reachable by zooming out */
+            fitPriceScale();
+          };
+
+          // The candles are a series like any other: switching them off leaves the pool as the
+          // chart's subject with only the lines drawn on it. The default volume study belongs to
+          // them, so it goes too — otherwise the bars stay under an empty pane.
+          const applyVisibility = () => {
+            const chart = widget?.activeChart();
+            if (!chart) return;
+            const on = priceVisibleRef.current;
+            try {
+              chart.getSeries?.()?.setVisible(on);
+              for (const st of chart.getAllStudies?.() ?? []) {
+                if (st.name === 'Volume') chart.getStudyById?.(st.id)?.setVisible(on);
               }
+            } catch {
+              /* an unswitchable series is not worth blanking the chart for */
             }
+            fitPriceScale();
           };
           // Ready means candles are on screen: the first data load, or a moment after the widget
           // is up if this library build has no data-loaded event.
@@ -520,6 +577,8 @@ export function PriceChart({
             /* older library builds may not expose it — the direct call below still runs */
           }
           snap();
+          applyRef.current = applyVisibility;
+          if (!priceVisibleRef.current) applyVisibility();
 
           for (const o of specs) {
             try {
@@ -559,6 +618,7 @@ export function PriceChart({
     return () => {
       cancelled = true;
       studies.clear();
+      applyRef.current = null;   // this widget is going; nothing to apply visibility to
       try { widget?.remove(); } catch { /* already torn down */ }
     };
   }, [seriesKey, symbol, exchange, resolution, visibleFrom, overlayKey, light]);

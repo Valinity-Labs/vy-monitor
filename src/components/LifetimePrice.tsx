@@ -44,6 +44,7 @@ const FAIR_VALUE_ID = 'vy-fair-value';
 const FAIR_VALUE_LABEL = tr('Fair Value', 'Valor Justo');
 const PROJECTED_ID = 'vy-projected';
 const PROJECTED_LABEL = tr('Projected', 'Proyectado');
+const PRICE_LABEL = tr('Price', 'Precio');
 const FUTURE_ID = 'vy-buyback-future';
 const FUTURE_LABEL = tr('Future Buyback', 'Recompra Futura');
 
@@ -140,6 +141,9 @@ export function LifetimePrice({ onReady }: { onReady?: () => void }) {
   const [range, setRange] = useState<{ key: RangeKey; from: number | null }>(() => openingRange('live'));
   // Which reference lines are drawn. The chart legend's own eye stays in step with these chips.
   const [linesOn, setLinesOn] = useState<Record<string, boolean>>(LINES_ON);
+  // The candles are a switch of their own. Off, the pool is still the chart's subject — same
+  // symbol, same scale, same tape below — with only the reference lines drawn on it.
+  const [priceOn, setPriceOn] = useState(true);
   const snapshot = useMemo(() => loadAllTrades(), []);
   const tail = useLiveTail();
 
@@ -330,6 +334,20 @@ export function LifetimePrice({ onReady }: { onReady?: () => void }) {
             <div className="vy-price__bench">
               <button
                 type="button"
+                className="vy-price__bench-item vy-price__bench-toggle vy-price__bench-candles"
+                aria-pressed={priceOn}
+                onClick={() => setPriceOn((on) => !on)}
+                title={tr(
+                  'The VY/USDC pool itself. Switched off, the chart keeps the pool as its subject and draws only the reference lines',
+                  'El pool VY/USDC en sí. Apagado, el gráfico mantiene el pool como su tema y dibuja solo las líneas de referencia',
+                )}
+              >
+                <span className="vy-price__bench-swatch vy-price__bench-swatch--candles" />
+                <strong>{PRICE_LABEL}</strong>{' '}
+                {fmtPrice(last.price)}
+              </button>
+              <button
+                type="button"
                 className="vy-price__bench-item vy-price__bench-toggle vy-price__bench-oracle"
                 aria-pressed={!!linesOn[FAIR_VALUE_ID]}
                 onClick={() => setLinesOn((prev) => ({ ...prev, [FAIR_VALUE_ID]: !prev[FAIR_VALUE_ID] }))}
@@ -381,7 +399,7 @@ export function LifetimePrice({ onReady }: { onReady?: () => void }) {
             trades={charted} seriesKey={view} symbol={cfg.symbol} exchange={cfg.exchange}
             resolution={resolution} overlays={overlays} visibleFrom={range.from ?? undefined}
             height={CHART_HEIGHT}
-            overlayVisible={linesOn} onReady={onReady}
+            overlayVisible={linesOn} priceVisible={priceOn} onReady={onReady}
             onOverlayToggle={(id, on) =>
               setLinesOn((prev) => (!!prev[id] === on ? prev : { ...prev, [id]: on }))}
           />

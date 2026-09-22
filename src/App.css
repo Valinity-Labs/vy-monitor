@@ -894,6 +894,22 @@ th {
 /* The official DEX median is an actual VY/USD price, not a rebased asset return.
    Its metallic key echoes the Valinity mark while the in-chart study uses one
    sturdy 3px gold stroke (a multi-plot faux glow duplicates values in the legend). */
+/* The candles' own switch. Green and red together, because the series is both — no single
+   colour would be honest, and the ring has to read as the candles, not as another line. */
+.vy-price__bench-candles {
+  --vy-chip: #089981;
+  padding: 0.2rem 0.7rem;
+}
+
+.vy-price__bench-candles strong { color: var(--vy-chip); }
+
+.vy-price__bench-swatch--candles {
+  width: 1.15rem;
+  height: 0.62rem;
+  border-radius: 0.1rem;
+  background: linear-gradient(90deg, #089981 0 48%, transparent 48% 52%, #e2483d 52% 100%);
+}
+
 .vy-price__bench-oracle {
   --vy-chip: var(--vy-dex-gold);
   border-radius: 999px;

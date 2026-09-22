@@ -3,7 +3,7 @@
  "chain": "ethereum",
  "chainId": 1,
  "symbol": "VY",
- "builtAtBlock": 26034181,
+ "builtAtBlock": 26036364,
  "eras": [
   {
    "id": "vy-legacy",
@@ -40,17 +40,17 @@
    },
    "decimals": 18,
    "scannedFrom": 24867746,
-   "scannedTo": 26034181,
+   "scannedTo": 26036364,
    "live": true,
    "cutoffReason": null,
-   "tradeCount": 1759,
+   "tradeCount": 1769,
    "firstTs": 1776104663,
-   "lastTs": 1790092643,
+   "lastTs": 1790110583,
    "minPrice": 0.038197844555372354,
    "maxPrice": 228.8375632910771
   }
  ],
- "tradeCount": 5566,
+ "tradeCount": 5576,
  "trades": [
   {
    "era": "vy-legacy",
@@ -72409,6 +72409,136 @@
    "quote": "43802411",
    "quoteUsd": 1,
    "poolPrice": 1.032133361
+  },
+  {
+   "era": "vy-current",
+   "block": 26034719,
+   "ts": 1790100563,
+   "tx": "0x6c7406859778885b3589de8352f707e3b8efbb288aff1da394afc57099970ccb",
+   "logIndex": 524,
+   "side": "buy",
+   "maker": "0x77a39416704617e115b1d7f71e74dd9c4aa7f2ef",
+   "vy": "895163966901641645074",
+   "quote": "990530047",
+   "quoteUsd": 1,
+   "poolPrice": 1.17942089
+  },
+  {
+   "era": "vy-current",
+   "block": 26034739,
+   "ts": 1790100803,
+   "tx": "0xf2cfd1ec574a5820a342905487d9c6432853bb3486578515889928f532c10803",
+   "logIndex": 370,
+   "side": "buy",
+   "maker": "0x5f03584ce32e410404e80a3765f2f1580b09d7a2",
+   "vy": "789586777315077840899",
+   "quote": "994467539",
+   "quoteUsd": 1,
+   "poolPrice": 1.33715689
+  },
+  {
+   "era": "vy-current",
+   "block": 26034741,
+   "ts": 1790100827,
+   "tx": "0x99ae75fac21571bd49b5f49481d94efa2c0822f134cb13515b30b1ae0bfe91c5",
+   "logIndex": 289,
+   "side": "sell",
+   "maker": "0xb91fb659d9a78953a7671021bd5314003730401a",
+   "vy": "800961084955658158080",
+   "quote": "1002241087",
+   "quoteUsd": 1,
+   "poolPrice": 1.177792182
+  },
+  {
+   "era": "vy-current",
+   "block": 26034747,
+   "ts": 1790100899,
+   "tx": "0x976d7217b152d0ab896cae9f41e45dd362d48fe3ca18d7aa21967b21a3926c7d",
+   "logIndex": 250,
+   "side": "sell",
+   "maker": "0x0f7e20a9cbf592eca4bd2534c486f388250ac22f",
+   "vy": "594000000000000000000",
+   "quote": "667140149",
+   "quoteUsd": 1,
+   "poolPrice": 1.077321651
+  },
+  {
+   "era": "vy-current",
+   "block": 26034806,
+   "ts": 1790101619,
+   "tx": "0xfbfc190fe4c09474322cb8fefcc4a32a0825ed1ce8f3fbdc7e679174e091471f",
+   "logIndex": 954,
+   "side": "buy",
+   "maker": "0x77a39416704617e115b1d7f71e74dd9c4aa7f2ef",
+   "vy": "64473993141843537382",
+   "quote": "70000000",
+   "quoteUsd": 1,
+   "poolPrice": 1.087622203
+  },
+  {
+   "era": "vy-current",
+   "block": 26034928,
+   "ts": 1790103083,
+   "tx": "0x0611db25354cdce7915825e3183ce0fe05aa5c241b79d98bb80ced7b2d9f4b1b",
+   "logIndex": 270,
+   "side": "buy",
+   "maker": "0xb806e40149bdc13697e8eee960e35579104665f3",
+   "vy": "128333787694710423",
+   "quote": "140000",
+   "quoteUsd": 1,
+   "poolPrice": 1.087642853
+  },
+  {
+   "era": "vy-current",
+   "block": 26034934,
+   "ts": 1790103155,
+   "tx": "0xd661187deb4982cb81b663cd44a41c79b45ba521ea4784c7d5a920fe177dfef7",
+   "logIndex": 442,
+   "side": "sell",
+   "maker": "0x19b60e065779f51e2c831052c35462b0c6c65127",
+   "vy": "545157000000000000000",
+   "quote": "568341112",
+   "quoteUsd": 1,
+   "poolPrice": 1.005189396
+  },
+  {
+   "era": "vy-current",
+   "block": 26035233,
+   "ts": 1790106743,
+   "tx": "0xbf618092de2dee49e0b914ae3ec6607f3888c1b030d05e6f35128027183d85e3",
+   "logIndex": 246,
+   "side": "sell",
+   "maker": "0xa7b94a0665b383a85ad70eaee01ca169e829f5af",
+   "vy": "496500000000000000000",
+   "quote": "480684714",
+   "quoteUsd": 1,
+   "poolPrice": 0.9379928641
+  },
+  {
+   "era": "vy-current",
+   "block": 26035416,
+   "ts": 1790108939,
+   "tx": "0x920a9f85d48674ec8f5995fcbe9677f23fc4ca98b48a8dbfa718526f5ba6b53c",
+   "logIndex": 154,
+   "side": "buy",
+   "maker": "0x19b60e065779f51e2c831052c35462b0c6c65127",
+   "vy": "580061393518396428525",
+   "quote": "568341112",
+   "quoteUsd": 1,
+   "poolPrice": 1.017449799
+  },
+  {
+   "era": "vy-current",
+   "block": 26035553,
+   "ts": 1790110583,
+   "tx": "0xa0ff186ff9dcb49b32164af35dc411f40a7483ff937e5554ac843dc49b853086",
+   "logIndex": 620,
+   "side": "buy",
+   "maker": "0xb1d6fbb31a2d3b2b2d045dc02a58921a30930629",
+   "vy": "180923910850899630876",
+   "quote": "187052120",
+   "quoteUsd": 1,
+   "poolPrice": 1.044305462
   }
  ]
 }
