@@ -708,6 +708,17 @@ const fetchData = async () => {
       const debt = raw.reduce((n, r) => n + r.debtUsd, 0);
       return { held, debt, equity: held - debt, ratio: debt > 0 ? held / debt : 0 };
     })(),
+    /**
+     * TOTAL VALUE LOCKED, the column the other three are read against: what the system holds,
+     * what borrowers owe it back, and the VY that is locked up as the collateral for that. The VY
+     * is a COUNT, not dollars, so it stays out of the column's total — it is what the dollars in
+     * the row above are secured by, not more dollars.
+     */
+    locked: {
+      heldUsd: Number(sheet?.hardAssetsUsd ?? 0n) / 1e18,
+      owedUsd: Number(sheet?.loansFaceUsd ?? 0n) / 1e18,
+      collateralVy: Number(balanceMap.ValinityCollateralTreasury[0].value) / 1e18,
+    },
   };
 
   const perVy = (usd: bigint) => (circulatingVY > 0n ? (usd * 10n ** 18n) / circulatingVY : 0n);

@@ -44,6 +44,7 @@ interface TVPriceScale {
 interface TVPane {
   getMainSourcePriceScale: () => TVPriceScale | null;
   setHeight?: (height: number) => void;
+  getHeight?: () => number;
 }
 interface TVStudyApi { isVisible: () => boolean; setVisible: (visible: boolean) => void }
 interface TVSeriesApi { setVisible: (visible: boolean) => void }
@@ -53,6 +54,8 @@ interface TVChartApi {
   getPanes?: () => TVPane[];
   createStudy?: (name: string, forceOverlay?: boolean, lock?: boolean) => Promise<unknown>;
   getStudyById?: (id: unknown) => TVStudyApi;
+  /** Deletes a study outright — and with the last source in a pane, the pane itself. */
+  removeEntity?: (id: unknown) => void;
   /** The candles themselves — switchable like any other series. */
   getSeries?: () => TVSeriesApi | null;
   getAllStudies?: () => { id: unknown; name: string }[];
@@ -129,6 +132,8 @@ export interface ChartOverlay {
   baseLabel?: string;
   /** Own-pane only: how the panel's numbers are written. 'volume' abbreviates 1,073,554 to 1.073M. */
   format?: 'price' | 'volume';
+  /** Own-pane only: the share of the chart the panel opens at, overriding OWN_PANE_SHARE. */
+  paneShare?: number;
   /**
    * Draws a BAND around `valueAt` instead of a line: a solid edge at ±`outer` and a fade that
    * starts at ±`inner`, built from `steps` stacked fills because the library's own gradient is
@@ -446,6 +451,9 @@ export function PriceChart({
   // Set by the widget effect while a chart is up: applies the candles' visibility and refits the
   // price scale to what is actually drawn. Null between widgets.
   const applyRef = useRef<(() => void) | null>(null);
+  // Re-divides the panels when the chart itself changes size: their heights are in pixels, so a
+  // drag on the resize bar would otherwise hand the whole difference to the candles.
+  const sizeRef = useRef<(() => void) | null>(null);
   const toggleRef = useRef(onOverlayToggle);
   const readyRef = useRef(onReady);
   useEffect(() => {
@@ -470,6 +478,8 @@ export function PriceChart({
     applyRef.current?.();
   }, [priceVisible]);
 
+  useEffect(() => { sizeRef.current?.(); }, [height]);
+
   // Which overlays exist decides the studies to create; their data can change without a rebuild.
   const overlayKey = overlays.map((o) => o.id).join(',');
 
@@ -479,6 +489,15 @@ export function PriceChart({
     let cancelled = false;
     const studies = studiesRef.current;
     const specs = overlaysRef.current;
+    // A panel under the candles exists only while its chip is on. Switching one off REMOVES its
+    // study rather than hiding it, because a hidden study keeps its pane — an empty grey strip
+    // with a title still sitting under the chart. Removing the last source in a pane removes the
+    // pane, so the candles get the height back. Switching it on creates the study again, and
+    // TradingView appends the new pane at the bottom: what is on screen is in the order the
+    // panels were last opened, not the order they are declared in.
+    const openPanes: string[] = [];             // overlay ids with a live pane, top to bottom
+    const entities = new Map<string, unknown>(); // ids to remove them by
+    const opening = new Set<string>();           // mid-creation, so a second apply does not double
 
     // Candle close instants per resolution, built on first use and dropped whenever the trade
     // list changes: the overlays ask for whichever resolution the viewer has picked.
@@ -593,12 +612,10 @@ export function PriceChart({
           const fitOwnPanes = () => {
             const chart = widget?.activeChart();
             if (!chart) return;
-            // Pane 0 is the candles; each own-pane study lands in the next pane, in the order the
-            // studies were created.
-            let paneIndex = 0;
-            for (const o of overlaysRef.current) {
-              if (o.pane !== 'own') continue;
-              paneIndex += 1;
+            // Pane 0 is the candles; the open panels follow it top to bottom, in `openPanes` order.
+            openPanes.forEach((id, slot) => {
+              const o = overlaysRef.current.find((x) => x.id === id);
+              if (!o) return;
               let lo = Infinity;
               let hi = 0;
               for (let ts = first; ts <= last; ts += Math.max((last - first) / 64, 1)) {
@@ -608,20 +625,15 @@ export function PriceChart({
                   if (v > hi) hi = v;
                 }
               }
-              if (!(hi > 0) || !Number.isFinite(lo)) continue;
+              if (!(hi > 0) || !Number.isFinite(lo)) return;
               try {
-                const pane = chart.getPanes?.()[paneIndex];
-                // Height from the container, not the `height` prop, so the effect keeps its
-                // existing dependencies — and so a panel is sized against what is on screen.
-                const box = containerRef.current?.clientHeight ?? 0;
-                if (box > 0) pane?.setHeight?.(Math.round(box * OWN_PANE_SHARE));
-                const scale = pane?.getMainSourcePriceScale();
+                const scale = chart.getPanes?.()[slot + 1]?.getMainSourcePriceScale();
                 scale?.setAutoScale?.(false);
                 scale?.setVisiblePriceRange?.({ from: lo * 0.97, to: hi * 1.03 });
               } catch {
                 /* the panel still reads, just from zero */
               }
-            }
+            });
           };
 
           const fitPriceScale = () => {
@@ -662,12 +674,107 @@ export function PriceChart({
             fitPriceScale();
           };
 
+          // Each open panel is given its share of the chart. Re-run after every open and close:
+          // TradingView hands a removed pane's height to whichever pane is left, and the panel
+          // that opened at 6% of the chart would otherwise end up filling half of it.
+          const sizeOwnPanes = () => {
+            const chart = widget?.activeChart();
+            const box = containerRef.current?.clientHeight ?? 0;
+            if (!chart || box <= 0) return;
+            // Every setHeight re-divides the grid among the OTHER panes, so a pane that is already
+            // the right size must be left alone — setting it again to the value it already has
+            // still knocks the ones beside it out. Bottom pane first, and only where it is wrong.
+            for (let slot = openPanes.length - 1; slot >= 0; slot--) {
+              const id = openPanes[slot];
+              const share = overlaysRef.current.find((x) => x.id === id)?.paneShare ?? OWN_PANE_SHARE;
+              const want = Math.round(box * share);
+              try {
+                const pane = chart.getPanes?.()[slot + 1];
+                if (!pane) continue;
+                if (Math.abs((pane.getHeight?.() ?? -1) - want) <= 4) continue;
+                pane.setHeight?.(want);
+              } catch {
+                /* the panel keeps the height the library gave it */
+              }
+            }
+          };
+          // Each pass fixes one pane and unsettles its neighbours by less than the last, so a few
+          // of them converge on the sizes asked for. Three is enough for three panels.
+          const sizeOwnPanesSettled = () => {
+            sizeOwnPanes();
+            setTimeout(sizeOwnPanes, 60);
+            setTimeout(sizeOwnPanes, 180);
+          };
+
+          const openOwnPane = (o: ChartOverlay) => {
+            const chart = widget?.activeChart();
+            if (!chart || opening.has(o.id)) return;
+            opening.add(o.id);
+            try {
+              void chart.createStudy?.(o.label, false, !!o.locked)?.then((id) => {
+                opening.delete(o.id);
+                const study = id == null || cancelled ? undefined : chart.getStudyById?.(id);
+                if (!study) return;
+                study.setVisible(true);
+                studies.set(o.id, study);
+                entities.set(o.id, id);
+                openPanes.push(o.id);      // the new pane is appended at the bottom
+                // The panel does not exist until its study does, so this is where it gets fitted.
+                setTimeout(() => { fitOwnPanes(); sizeOwnPanesSettled(); }, 50);
+              }).catch(() => { opening.delete(o.id); });
+            } catch {
+              opening.delete(o.id);        // a panel that will not draw must not take the chart down
+            }
+          };
+
+          const closeOwnPane = (id: string) => {
+            const chart = widget?.activeChart();
+            const slot = openPanes.indexOf(id);
+            if (slot >= 0) openPanes.splice(slot, 1);
+            const entity = entities.get(id);
+            entities.delete(id);
+            studies.delete(id);
+            try {
+              if (entity != null) chart?.removeEntity?.(entity);
+            } catch {
+              /* already gone — the viewer can have deleted it from the legend */
+            }
+            sizeOwnPanesSettled();   // the freed height went somewhere; put it under the candles
+          };
+
+          /** Brings the panels on screen into line with the chips above the chart. */
+          const syncOwnPanes = () => {
+            for (const o of overlaysRef.current) {
+              if (o.pane !== 'own') continue;
+              const wanted = !!o.alwaysVisible || !!visibleRef.current[o.id];
+              const open = openPanes.includes(o.id);
+              if (wanted && !open) openOwnPane(o);
+              else if (!wanted && open) closeOwnPane(o.id);
+            }
+            sizeOwnPanesSettled();
+          };
+
+          /**
+           * WHAT IS CURRENTLY ASKED FOR: the candles' switch plus every chip's. This page
+           * re-renders constantly — the live tail alone lands a new `overlays` array every couple
+           * of seconds — and re-applying the view on each of those was silently undoing the
+           * viewer's own zoom: fit the price scale to the window's band again and the candles they
+           * had just widened snap back small. So the work below runs only when this key changes,
+           * which is to say only when somebody actually switched something.
+           */
+          const visibilityKey = () => `${priceVisibleRef.current ? 1 : 0}|` + overlaysRef.current
+            .map((o) => `${o.id}:${o.alwaysVisible || visibleRef.current[o.id] ? 1 : 0}`).join(',');
+          let appliedKey = '';
+
           // The candles are a series like any other: switching them off leaves the pool as the
           // chart's subject with only the lines drawn on it. The default volume study belongs to
           // them, so it goes too — otherwise the bars stay under an empty pane.
           const applyVisibility = () => {
             const chart = widget?.activeChart();
             if (!chart) return;
+            const key = visibilityKey();
+            if (key === appliedKey) return;  // a re-render, not a change — the view is theirs
+            appliedKey = key;
             const on = priceVisibleRef.current;
             try {
               chart.getSeries?.()?.setVisible(on);
@@ -677,6 +784,7 @@ export function PriceChart({
             } catch {
               /* an unswitchable series is not worth blanking the chart for */
             }
+            syncOwnPanes();
             fitPriceScale();
           };
           // Ready means candles are on screen: the first data load, or a moment after the widget
@@ -690,9 +798,13 @@ export function PriceChart({
           }
           snap();
           applyRef.current = applyVisibility;
+          sizeRef.current = sizeOwnPanesSettled;
           if (!priceVisibleRef.current) applyVisibility();
 
+          // Lines ON the candles are created once and switched; the panels below them are not
+          // created at all until their chip asks for one.
           for (const o of specs) {
+            if (o.pane === 'own') continue;
             try {
               const chart = widget?.activeChart();
               void chart?.createStudy?.(o.label, false, !!o.locked)?.then((id) => {
@@ -700,13 +812,12 @@ export function PriceChart({
                 if (!study) return;
                 study.setVisible(!!o.alwaysVisible || !!visibleRef.current[o.id]);
                 studies.set(o.id, study);
-                // The panel only exists once its study does, so this is where it gets fitted.
-                if (o.pane === 'own') setTimeout(fitOwnPanes, 50);
               }).catch(() => { });
             } catch {
               /* an overlay that fails to draw must not take the candles down with it */
             }
           }
+          syncOwnPanes();
           // The legend's eye switches a line too — report it so the buttons above the chart follow.
           widget?.subscribe?.('study_properties_changed', () => {
             for (const [id, study] of studies) {
@@ -731,6 +842,7 @@ export function PriceChart({
       cancelled = true;
       studies.clear();
       applyRef.current = null;   // this widget is going; nothing to apply visibility to
+      sizeRef.current = null;
       try { widget?.remove(); } catch { /* already torn down */ }
     };
   }, [seriesKey, symbol, exchange, resolution, visibleFrom, overlayKey, light]);

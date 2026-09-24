@@ -13,8 +13,8 @@
    "startBlock": 24867000,
    "startBlockReason": "VY's first transfer — src/utils/logs.ts's VY_GENESIS_BLOCK",
    "sampling": "one sample per block where the base changes, thinned to equal block windows, plus a zero anchor at genesis; a fixed stride would redraw a flat line through empty quarters",
-   "changeBlockCount": 2830,
-   "verifiedAgainst": "balanceOf(officers) at block 26044871"
+   "changeBlockCount": 2852,
+   "verifiedAgainst": "balanceOf(officers) at block 26049030"
   },
   "projection": {
    "bookVy": "projCurve.vyBoughtFull in src/pages/Mainnet.tsx — sum over venues of vy * heldUsd / (depthUsd + heldUsd)",
@@ -41,7 +41,7 @@
   }
  },
  "stride": 1800,
- "builtAtBlock": 26044871,
+ "builtAtBlock": 26049030,
  "degradedSampleCount": 0,
  "degraded": [],
  "samples": [
@@ -3316,14 +3316,44 @@
    "arbUsd": 858.615951
   },
   {
-   "block": 26044871,
-   "ts": 1790223227,
+   "block": 26045090,
+   "ts": 1790225867,
    "boughtBackVy": 958734.76042,
-   "heldVy": 117919.13611,
-   "bookVy": 55697.244419,
+   "heldVy": 119768.940993,
+   "bookVy": 53996.233734,
    "arbVy": 0,
-   "bookUsd": 152761.268605,
+   "bookUsd": 150823.704425,
    "arbUsd": 0
+  },
+  {
+   "block": 26046890,
+   "ts": 1790247755,
+   "boughtBackVy": 958734.76042,
+   "heldVy": 119825.215516,
+   "bookVy": 54139.11939,
+   "arbVy": 0,
+   "bookUsd": 149593.548495,
+   "arbUsd": 0
+  },
+  {
+   "block": 26048690,
+   "ts": 1790269535,
+   "boughtBackVy": 958734.76042,
+   "heldVy": 119886.974848,
+   "bookVy": 54154.969404,
+   "arbVy": 477.860732,
+   "bookUsd": 151322.151528,
+   "arbUsd": 506.609524
+  },
+  {
+   "block": 26049030,
+   "ts": 1790273639,
+   "boughtBackVy": 958734.76042,
+   "heldVy": 119886.974848,
+   "bookVy": 54154.969404,
+   "arbVy": 449.209532,
+   "bookUsd": 150542.7338,
+   "arbUsd": 475.131926
   }
  ]
 }

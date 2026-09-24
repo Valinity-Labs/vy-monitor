@@ -238,7 +238,9 @@ function DragBar({
 // Both lines start on; each legend chip is the switch for its own line.
 const LINES_ON: Record<string, boolean> = {
   [FAIR_VALUE_ID]: true, [PROJECTED_ID]: true, [FUTURE_ID]: true, [BOT_ID]: true,
-  [BOOKS_ID]: true, [LOCKED_ID]: true,
+  // Closed on arrival: their panels collapse to a title bar until their chip is clicked, so the
+  // candles keep the height until someone asks for them.
+  [BOOKS_ID]: false, [LOCKED_ID]: false,
 };
 
 function Stat({ label, value, lead }: { label: string; value: string; lead?: boolean }) {
@@ -387,6 +389,7 @@ export function LifetimePrice({ onReady }: { onReady?: () => void }) {
       pane: 'own',
       format: 'volume',
       locked: true,
+      paneShare: 0.06,
       // TWO UNITS, one panel. Dollars are what the desk raises; VY is what the pools can actually
       // give up, and it saturates — today the book's dollars jumped 37% while the VY it buys rose
       // 13%. They sit close enough in magnitude ($148k against 55k VY) to share one scale.
@@ -560,52 +563,9 @@ export function LifetimePrice({ onReady }: { onReady?: () => void }) {
                 <strong>{PROJECTED_LABEL}</strong>{' '}
                 {Number.isFinite(projectedAtChartEnd) ? fmtPrice(projectedAtChartEnd) : '—'}
               </button>
-              <button
-                type="button"
-                className="vy-price__bench-item vy-price__bench-toggle vy-price__bench-future"
-                aria-pressed={!!linesOn[FUTURE_ID]}
-                onClick={() => setLinesOn((prev) => ({ ...prev, [FUTURE_ID]: !prev[FUTURE_ID] }))}
-                title={tr(
-                  'What the VMMO book and the arbitrage would spend, and the VY that buys — the part that moves when VY falls',
-                  'Lo que gastarían el libro de VMMO y el arbitraje, y el VY que compra — la parte que se mueve cuando VY cae'
-                )}
-              >
-                <span className="vy-price__bench-swatch vy-price__bench-swatch--future" />
-                <strong>{FUTURE_LABEL}</strong>{' '}
-                {Number.isFinite(futureUsdAtChartEnd) ? fmtUsdShort(futureUsdAtChartEnd) : '—'}
-                {Number.isFinite(futureVyAtChartEnd) ? ` · ${fmtVy(futureVyAtChartEnd)}` : ''}
-              </button>
               {/* VY's move over the window ON SCREEN — the same pill as the line chips, ringed
                   and coloured in the direction of the move, with the window it measures on its
                   right. Not a switch: there is nothing here to turn off. */}
-              <button
-                type="button"
-                className="vy-price__bench-item vy-price__bench-toggle vy-price__bench-books"
-                aria-pressed={!!linesOn[BOOKS_ID]}
-                onClick={() => setLinesOn((prev) => ({ ...prev, [BOOKS_ID]: !prev[BOOKS_ID] }))}
-                title={tr(
-                  'What the system holds, and what is left of it after the stakers\' claim — the gap between the two lines is the debt',
-                  'Lo que el sistema tiene, y lo que queda tras el derecho de los stakers — la diferencia entre las dos líneas es la deuda',
-                )}
-              >
-                <span className="vy-price__bench-swatch vy-price__bench-swatch--books" />
-                <strong>{BOOKS_LABEL}</strong>{' '}
-                {Number.isFinite(holdingsAtChartEnd) ? fmtUsdShort(holdingsAtChartEnd) : '—'}
-              </button>
-              <button
-                type="button"
-                className="vy-price__bench-item vy-price__bench-toggle vy-price__bench-locked"
-                aria-pressed={!!linesOn[LOCKED_ID]}
-                onClick={() => setLinesOn((prev) => ({ ...prev, [LOCKED_ID]: !prev[LOCKED_ID] }))}
-                title={tr(
-                  'Every asset the system holds or is owed back, against the market cap the contract strikes at its own oracle',
-                  'Todos los activos que el sistema tiene o le deben, frente a la capitalización que el contrato calcula con su propio oráculo',
-                )}
-              >
-                <span className="vy-price__bench-swatch vy-price__bench-swatch--locked" />
-                <strong>{LOCKED_LABEL}</strong>{' '}
-                {Number.isFinite(tvlAtChartEnd) ? fmtUsdShort(tvlAtChartEnd) : '—'}
-              </button>
               <span
                 className={`vy-price__bench-item vy-price__bench-change${
                   last.price < start.price ? ' vy-price__bench-change--down' : ''}`}
@@ -637,6 +597,57 @@ export function LifetimePrice({ onReady }: { onReady?: () => void }) {
             onStep={() => resizeChart(120)}
             onReset={() => { setChartHeight(CHART_HEIGHT); writeStored('vy-chart-height', CHART_HEIGHT); }}
           />
+
+          {/* THE PANELS UNDER THE CHART, on a line of their own between the chart and the
+              transactions — next to what they switch, rather than crowding the price chips
+              above, which are lines drawn ON the candles. */}
+          {overlays.length > 0 && (
+            <div className="vy-price__bench vy-price__panels">
+            <button
+              type="button"
+              className="vy-price__bench-item vy-price__bench-toggle vy-price__bench-future"
+              aria-pressed={!!linesOn[FUTURE_ID]}
+              onClick={() => setLinesOn((prev) => ({ ...prev, [FUTURE_ID]: !prev[FUTURE_ID] }))}
+              title={tr(
+                'What the VMMO book and the arbitrage would spend, and the VY that buys — the part that moves when VY falls',
+                'Lo que gastarían el libro de VMMO y el arbitraje, y el VY que compra — la parte que se mueve cuando VY cae'
+              )}
+            >
+              <span className="vy-price__bench-swatch vy-price__bench-swatch--future" />
+              <strong>{FUTURE_LABEL}</strong>{' '}
+              {Number.isFinite(futureUsdAtChartEnd) ? fmtUsdShort(futureUsdAtChartEnd) : '—'}
+              {Number.isFinite(futureVyAtChartEnd) ? ` · ${fmtVy(futureVyAtChartEnd)}` : ''}
+            </button>
+            <button
+              type="button"
+              className="vy-price__bench-item vy-price__bench-toggle vy-price__bench-books"
+              aria-pressed={!!linesOn[BOOKS_ID]}
+              onClick={() => setLinesOn((prev) => ({ ...prev, [BOOKS_ID]: !prev[BOOKS_ID] }))}
+              title={tr(
+                'What the system holds, and what is left of it after the stakers\' claim — the gap between the two lines is the debt',
+                'Lo que el sistema tiene, y lo que queda tras el derecho de los stakers — la diferencia entre las dos líneas es la deuda',
+              )}
+            >
+              <span className="vy-price__bench-swatch vy-price__bench-swatch--books" />
+              <strong>{BOOKS_LABEL}</strong>{' '}
+              {Number.isFinite(holdingsAtChartEnd) ? fmtUsdShort(holdingsAtChartEnd) : '—'}
+            </button>
+            <button
+              type="button"
+              className="vy-price__bench-item vy-price__bench-toggle vy-price__bench-locked"
+              aria-pressed={!!linesOn[LOCKED_ID]}
+              onClick={() => setLinesOn((prev) => ({ ...prev, [LOCKED_ID]: !prev[LOCKED_ID] }))}
+              title={tr(
+                'Every asset the system holds or is owed back, against the market cap the contract strikes at its own oracle',
+                'Todos los activos que el sistema tiene o le deben, frente a la capitalización que el contrato calcula con su propio oráculo',
+              )}
+            >
+              <span className="vy-price__bench-swatch vy-price__bench-swatch--locked" />
+              <strong>{LOCKED_LABEL}</strong>{' '}
+              {Number.isFinite(tvlAtChartEnd) ? fmtUsdShort(tvlAtChartEnd) : '—'}
+            </button>
+            </div>
+          )}
 
           <TradeTape
             trades={shown}

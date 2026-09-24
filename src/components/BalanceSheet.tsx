@@ -228,27 +228,6 @@ export function BackingTiles({ floors }: { floors: Floors }) {
           </div>
         </div>
 
-        <div className="vy-tile vy-tile--tall">
-          <div className="vy-tile__label">
-            <span className="vy-swatch" style={{ background: '#1d5fd0' }} />
-            {tr('Total Value Locked', 'Valor Total Bloqueado')}
-          </div>
-          <div className="vy-tile__value vy-tile__value--count" style={{ color: '#1d5fd0' }}>
-            {fmtUsd(floors.tvl, 0)}
-          </div>
-          <div className="vy-tile__hint">
-            {tr(
-              'everything the system holds or is owed back',
-              'todo lo que el sistema tiene o le deben',
-            )}
-          </div>
-          <div className="vy-tile__caveat">
-            {tr(
-              'hard assets on hand plus the face value of the loan book — assets out with borrowers, owed back to unlock their collateral',
-              'activos duros disponibles más el valor nominal del libro de préstamos — activos en manos de prestatarios, que deben devolverse para liberar su garantía',
-            )}
-          </div>
-        </div>
       </div>
 
     </>
@@ -283,6 +262,8 @@ export type AssetRow = {
 export type AssetTable = {
   rows: AssetRow[];
   totals: { held: number; debt: number; equity: number; ratio: number };
+  /** The TVL column: held, owed back, and the VY locked as collateral for the owed part. */
+  locked: { heldUsd: number; owedUsd: number; collateralVy: number };
 };
 
 // Minus sign OUTSIDE the dollar sign — `'$' + (-20921).toLocaleString()` would
@@ -314,12 +295,39 @@ function Cell({ sym, native, usd, muted }: { sym: string; native: string | null;
 }
 
 export function HoldingsTable({ table }: { table: AssetTable }) {
-  const { rows, totals } = table;
+  const { rows, totals, locked } = table;
   const over = totals.held >= totals.debt;
 
   return (
     <div className="vy-sheet">
-      <div className="vy-cols">
+      <div className="vy-cols vy-cols--locked">
+        {/* The widest measure, first: everything the system holds or is owed back. Its rows are
+            not per-asset like the three beside it, so they do not share their baselines. */}
+        <Col
+          title={tr('Total Value Locked', 'Valor Total Bloqueado')}
+          sub={tr('held, owed back, and the VY locked for it', 'en tenencia, por cobrar, y el VY bloqueado por ello')}
+          accent="#1d5fd0"
+        >
+          <div className="vy-cell">
+            <div className="vy-cell__sym">{tr('Held', 'En tenencia')}</div>
+            <div className="vy-cell__native">{tr('hard assets on hand', 'activos duros disponibles')}</div>
+            <div className="vy-cell__usd">{money(locked.heldUsd)}</div>
+          </div>
+          <div className="vy-cell">
+            <div className="vy-cell__sym">{tr('Owed to the system', 'Adeudado al sistema')}</div>
+            <div className="vy-cell__native">{tr('loans out, at face', 'préstamos vigentes, a valor nominal')}</div>
+            <div className="vy-cell__usd">{money(locked.owedUsd)}</div>
+          </div>
+          {/* A COUNT, not dollars: it secures the row above rather than adding to it, so it is
+              marked as VY and left out of the total below. */}
+          <div className="vy-cell vy-cell--vy">
+            <div className="vy-cell__sym">{tr('VY locked for it', 'VY bloqueado por ello')}</div>
+            <div className="vy-cell__native">{tr('collateral treasury', 'tesorería de garantías')}</div>
+            <div className="vy-cell__usd">{fmtVy(locked.collateralVy)}</div>
+          </div>
+          <div className="vy-col__total">{money(locked.heldUsd + locked.owedUsd)}</div>
+        </Col>
+
         <Col title={tr('Holdings', 'Tenencias')} sub={tr('total ecosystem holdings', 'tenencias totales del ecosistema')} accent="var(--vy-series-1)">
           {rows.map((r) => <Cell key={r.symbol} sym={r.symbol} native={r.heldNative} usd={r.heldUsd} />)}
           <div className="vy-col__total">{money(totals.held)}</div>

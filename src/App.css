@@ -221,14 +221,13 @@ th {
   --vy-ink-line: #000000;
 }
 
-/* Six boxes in four columns, flowing DOWN each column: the projected price two rows tall on the
-   left and the settled buyback total two rows tall on the right, with market over treasury value
-   and loan-to-VY over the projected buyback between them — the two prices paired, the two
-   buyback counts paired. Under 64rem there is no room for four columns of figures, so they wrap
-   as plain cards. */
+/* Six boxes, three across and two down, flowing DOWN each column so each pair belongs together:
+   projected over the settled buyback total, market over treasury value, loan-to-VY over the
+   projected buyback. Under 64rem there is no room for three columns of figures, so they wrap as
+   plain cards. */
 .vy-tiles {
   display: grid;
-  grid-template-columns: 1.1fr 1fr 1fr 1.3fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   /* Equal rows, so the two stacked boxes in a column split its height evenly instead of the
      one with the longer footnote taking most of it. */
   grid-template-rows: repeat(2, minmax(0, 1fr));
@@ -314,8 +313,20 @@ th {
   gap: 0.6rem;
 }
 
+/* With Total Value Locked leading, four columns: its rows are sentences rather than tickers, so
+   it takes the extra width. */
+.vy-cols--locked { grid-template-columns: 1.5fr 1fr 1fr 1fr; }
+
+/* A VY count in a dollar column, marked so it cannot be read as money. */
+.vy-cell--vy .vy-cell__usd { color: var(--vy-ink-2); font-variant-numeric: tabular-nums; }
+
 @media (max-width: 40rem) {
   .vy-cols { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .vy-cols--locked { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 64rem) {
+  .vy-cols--locked { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 .vy-col {
@@ -885,6 +896,15 @@ th {
 }
 
 .vy-price__bench-lead { color: var(--vy-ink-3); }
+
+/* The panel switches live under the chart, above the transactions — one quiet line, centred,
+   separated from the tape rather than from the candles they belong to. */
+.vy-price__panels {
+  justify-content: center;
+  gap: 0.35rem 0.9rem;
+  margin: 0.15rem 0 0.9rem;
+}
+
 
 .vy-price__bench-item {
   display: inline-flex;
