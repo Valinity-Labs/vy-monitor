@@ -23,6 +23,10 @@ import { useTradeTapeDetails } from '../utils/useTradeTapeDetails';
  * Capped at the most recent `limit` fills (default 100). The cap is a display choice, not a
  * data one — the chart above is built from the FULL history, so trimming the tape costs
  * nothing in accuracy and keeps the table readable.
+ *
+ * `visibleRows` makes the table a WINDOW: that many rows are on screen and the rest roll inside
+ * it, so the tape occupies the same space however many fills it holds and the page below it never
+ * moves. Without it the table is as tall as its rows, as it was before.
  */
 
 const money = (n: number) =>
@@ -75,8 +79,8 @@ const localAction = (action: string) => (LANG === 'es' ? (ACTION_ES[action] ?? a
 type TapeRowStyle = CSSProperties & { '--vy-tape-fill': string };
 
 export function TradeTape({
-  trades, symbol, limit = 100, note,
-}: { trades: Trade[]; symbol?: string; limit?: number; note?: string }) {
+  trades, symbol, limit = 100, note, visibleRows,
+}: { trades: Trade[]; symbol?: string; limit?: number; note?: string; visibleRows?: number }) {
   // `trades` arrives oldest-first (chart order); the tape reads newest-first.
   const rows = useMemo(() => trades.slice(-limit).reverse(), [limit, trades]);
   const details = useTradeTapeDetails(rows);
@@ -113,7 +117,12 @@ export function TradeTape({
         </span>
       </div>
 
-      <div className="vy-tape__scroll">
+      {/* The window's height is a whole number of rows plus the sticky header, so a scroll can
+          never stop on a half-drawn row. */}
+      <div
+        className="vy-tape__scroll"
+        style={visibleRows ? { maxHeight: `calc(${visibleRows} * var(--vy-tape-row) + var(--vy-tape-head))` } : undefined}
+      >
         <table className="vy-tape__table">
           <thead>
             <tr>

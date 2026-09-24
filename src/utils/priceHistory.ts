@@ -448,17 +448,41 @@ export function buildCandles(trades: Trade[], resolution: string): Bar[] {
 }
 
 /**
- * When each candle's close was set: the time of the last trade in its bucket, or — for a quiet
- * bucket the chart fills forward — the end of the bucket. Anything drawn alongside the candles
- * (the reserve-asset lines) is read at these instants, so a line and a candle compare the same
- * moment instead of the line lagging its candle by up to a whole bar.
+ * When each candle's close was set: the time of the last trade the bar actually contains, or —
+ * for a quiet bar the chart fills forward — the end of the bar. Anything drawn alongside the
+ * candles (Treasury Value, Projected, the buyback panel) is read at these instants, so a line and a
+ * candle compare the same moment instead of the line lagging its candle by up to a whole bar.
+ *
+ * THE BAR TIME IS NOT OUR BUCKET KEY. TradingView reports a weekly bar on its own calendar —
+ * aligned to Monday — while `bucketing` floors against the epoch, which is a Thursday. An exact
+ * key lookup therefore missed on EVERY weekly bar and fell through to the end of the bar, one
+ * week ahead of itself; the live bar then read a week stale, which is why "All" showed Projected
+ * $5.30 while the same moment was $10.43 and Future Buyback $107K against $158K. So a reported
+ * time is matched to the first bucket that STARTS INSIDE that bar, which is alignment-proof, and
+ * a bar holding no bucket still falls back to its own end.
  */
 export function barCloseTime(trades: Trade[], resolution: string): (barTimeMs: number) => number {
   const { start, next } = bucketing(resolution);
-  const lastTrade = new Map<number, number>();
-  // Oldest first, so the last write for a bucket is its closing trade.
-  for (const t of trades) lastTrade.set(start(t.ts * 1000), t.ts * 1000);
-  return (bar) => lastTrade.get(bar) ?? next(bar);
+  // Bucket starts in ascending order, each with the instant of the last trade in it.
+  const starts: number[] = [];
+  const closeOf = new Map<number, number>();
+  for (const t of trades) {
+    const k = start(t.ts * 1000);
+    if (!closeOf.has(k)) starts.push(k);
+    closeOf.set(k, t.ts * 1000);   // chain order, so the last write is the bucket's closing trade
+  }
+  return (bar) => {
+    const end = next(bar);
+    let lo = 0;
+    let hi = starts.length - 1;
+    let found = -1;
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1;
+      if (starts[mid] >= bar) { found = mid; hi = mid - 1; } else { lo = mid + 1; }
+    }
+    const k = found >= 0 && starts[found] < end ? starts[found] : null;
+    return k === null ? end : closeOf.get(k) ?? end;
+  };
 }
 
 /** Price decimals that keep a sub-cent asset readable without trailing noise. */

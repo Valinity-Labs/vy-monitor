@@ -960,7 +960,7 @@ const fetchData = async () => {
     }
   }
 
-  // ─── VY the arbitrage would buy if the market fell below fair value ──────
+  // ─── VY the arbitrage would buy if the market fell below treasury value ───
   //
   // The DAX treasury pools (VY/WETH, VY/WBTC, VY/PAXG) are what the oracle medians into FAIR
   // VALUE. When the public VY/USDC pool trades BELOW them, the arbitrage sells VY into the DAX
@@ -980,7 +980,7 @@ const fetchData = async () => {
   const arbBuyVy = (() => {
     const Vu = Number(vyReserve) / 1e18;
     const Uu = Number(usdcReserve) / 1e6;
-    // The three treasury pools only — the VGC pool is not part of fair value.
+    // The three treasury pools only — the VGC pool is not part of treasury value.
     const treasury = daxPools.filter((p) => tableAssets.some(
       (t) => t.address.toLowerCase() === p.asset.toLowerCase() && t.sym !== 'USDC'
     ));
@@ -1109,7 +1109,18 @@ const fetchData = async () => {
         borrowUsdPerVy,
         ltvBps,
         maxLoanVy,
-        market: Number(marketPerVy) / 1e18,
+        // THE MARKET IS THE PUBLIC POOL, and only the public pool: USDC reserve ÷ VY reserve at
+        // this block, the price anyone can actually trade at. The VY oracle reads the DAX — the
+        // treasury's own three pools — so showing its number here labelled "market" described a
+        // venue no one outside the system can reach. That number is still published, beside this
+        // one, as TREASURY VALUE.
+        market: vyReserve > 0n ? Number((usdcReserve * 10n ** 30n) / vyReserve) / 1e18 : 0,
+        treasury: Number(marketPerVy) / 1e18,
+        // TOTAL VALUE LOCKED: the coins the system holds plus the face value of the loan book —
+        // assets that are out with borrowers and owed back to unlock their collateral. Two orders
+        // of magnitude above the holdings alone, which is why the chart gives it its own panel
+        // beside market cap rather than beside holdings.
+        tvl: Number(sheet.hardAssetsUsd + sheet.loansFaceUsd) / 1e18,
         circulating: Number(circulatingVY) / 1e18,
         equityUsd: Number(sheet.equityUsd) / 1e18,
         hardEquityUsd: Number(hardEquityUsd) / 1e18,
@@ -1494,6 +1505,8 @@ function Content({ data, volume, volProgress, holders }: { data: MonitorData; vo
             {renderValues(data.balanceSheet.rows)}
 
             <h3 style={{ marginTop: '1rem' }}>Era</h3>
+            {/* vyPriceUsd is the TREASURY value, not the public pool: the market cap beside it is
+                VBSO's own, struck at the oracle's price, and the era ratchet reads that. */}
             <EraLadder
               era={data.balanceSheet.era}
               mcapUsd={data.balanceSheet.floors.mcapUsd}
@@ -1501,7 +1514,7 @@ function Content({ data, volume, volProgress, holders }: { data: MonitorData; vo
               liveEraMaxBps={data.balanceSheet.eraMaxBps}
               assetMults={data.balanceSheet.assetMults}
               tier3TermDays={data.balanceSheet.tier3TermDays}
-              vyPriceUsd={data.balanceSheet.floors.market}
+              vyPriceUsd={data.balanceSheet.floors.treasury}
             />
 
             </>)}

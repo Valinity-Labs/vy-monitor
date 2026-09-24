@@ -48,7 +48,12 @@ export type Floors = {
   borrowUsdPerVy: number;
   ltvBps: number;
   maxLoanVy: number;
+  /** The public VY/USDC pool: its own price, the only one anyone can actually trade at. */
   market: number;
+  /** The VY oracle's median across the three DAX treasury pools — the public pool is not in it. */
+  treasury: number;
+  /** Hard assets plus the face value of the loan book — everything held or owed back. */
+  tvl: number;
   circulating: number;
   equityUsd: number;
   hardEquityUsd: number;
@@ -78,7 +83,7 @@ export function BackingTiles({ floors }: { floors: Floors }) {
   return (
     <>
       <div className="vy-tiles">
-        <div className="vy-tile vy-tile--tall">
+        <div className="vy-tile">
           <div className="vy-tile__label">
             <span className="vy-swatch" style={{ background: 'var(--vy-series-1)' }} />
             {tr('Projected', 'Proyectado')}
@@ -111,6 +116,22 @@ export function BackingTiles({ floors }: { floors: Floors }) {
 
         <div className="vy-tile">
           <div className="vy-tile__label">
+            <span className="vy-swatch" style={{ background: 'var(--vy-dex-gold)' }} />
+            {tr('Total VY Bought Back', 'Total de VY Recomprado')}
+          </div>
+          <div className="vy-tile__value vy-tile__value--count" style={{ color: 'var(--vy-dex-gold)' }}>
+            {fmtVy(floors.burnBoughtBackVy)}
+          </div>
+          <div className="vy-tile__hint">
+            {tr(
+              'bought back to date, plus what the buyback officers hold right now',
+              'recomprado hasta hoy, más lo que los oficiales de recompra mantienen ahora',
+            )}
+          </div>
+        </div>
+
+        <div className="vy-tile">
+          <div className="vy-tile__label">
             <span className="vy-swatch" style={{ background: 'var(--vy-ink-2)' }} />
             {tr('Market', 'Mercado')}
           </div>
@@ -119,14 +140,37 @@ export function BackingTiles({ floors }: { floors: Floors }) {
           </div>
           <div className="vy-tile__hint">{tr('what VY actually trades at', 'a lo que realmente cotiza VY')}</div>
           <div className="vy-tile__caveat">
-            {/* Spanish puts "Valinity" after the linked words, so the fragments differ in order. */}
-            {tr('price read from the official Valinity', 'precio leído del')}{' '}
+            {tr('price of the public ', 'precio del ')}
+            <a href="https://etherscan.io/address/0xf96cCac0bfd5de8d1F69EA9F9f43ed3B174c2705" target="_blank" rel="noreferrer">
+              {tr('VY/USDC pool', 'pool público VY/USDC')}
+            </a>
+            {tr(' itself — USDC reserve ÷ VY reserve', ' — reserva de USDC ÷ reserva de VY')}
+          </div>
+        </div>
+
+        <div className="vy-tile">
+          <div className="vy-tile__label">
+            <span className="vy-swatch" style={{ background: 'var(--vy-ink-line)' }} />
+            {tr('Treasury Value', 'Valor del Tesoro')}
+          </div>
+          <div className="vy-tile__value" style={{ color: 'var(--vy-ink-line)' }}>
+            {fmtUsd(floors.treasury)}
+          </div>
+          <div className="vy-tile__hint">
+            {tr(
+              "the treasury's own three pools — VY/WETH, VY/WBTC, VY/PAXG",
+              'los tres pools propios del tesoro — VY/WETH, VY/WBTC, VY/PAXG',
+            )}
+          </div>
+          <div className="vy-tile__caveat">
+            {tr('time-weighted median from the Valinity ', 'mediana ponderada por tiempo del ')}
             {floors.vyOracle ? (
               <a href={`https://etherscan.io/address/${floors.vyOracle}`} target="_blank" rel="noreferrer">
-                {tr('price oracle contract', 'contrato oficial del oráculo de precios')}
+                {tr('price oracle', 'oráculo de precios de Valinity')}
               </a>
-            ) : tr('price oracle contract', 'contrato oficial del oráculo de precios')}
-            {tr('', ' de Valinity')}
+            ) : tr('price oracle', 'oráculo de precios de Valinity')}
+            {tr('. The public pool is not in it — nobody trades there.',
+                '. El pool público no forma parte de ella — nadie negocia ahí.')}
           </div>
         </div>
 
@@ -174,28 +218,34 @@ export function BackingTiles({ floors }: { floors: Floors }) {
               ? tr('pool depth unavailable', 'profundidad de los pools no disponible')
               : floors.burnArbVy > 0
                 ? tr(
-                  `${fmtVy(floors.burnArbVy)} the arbitrage will buy at today's gap to fair value`,
-                  `${fmtVy(floors.burnArbVy)} que comprará el arbitraje con la brecha actual al valor justo`,
+                  `${fmtVy(floors.burnArbVy)} the arbitrage will buy at today's gap to treasury value`,
+                  `${fmtVy(floors.burnArbVy)} que comprará el arbitraje con la brecha actual al valor del tesoro`,
                 )
                 : tr(
-                  'nothing from the arbitrage — the market is at or above fair value',
-                  'nada del arbitraje — el mercado está en o por encima del valor justo',
+                  'nothing from the arbitrage — the market is at or above treasury value',
+                  'nada del arbitraje — el mercado está en o por encima del valor del tesoro',
                 )}
           </div>
         </div>
 
-        <div className="vy-tile">
+        <div className="vy-tile vy-tile--tall">
           <div className="vy-tile__label">
-            <span className="vy-swatch" style={{ background: 'var(--vy-dex-gold)' }} />
-            {tr('Total VY Bought Back', 'Total de VY Recomprado')}
+            <span className="vy-swatch" style={{ background: '#1d5fd0' }} />
+            {tr('Total Value Locked', 'Valor Total Bloqueado')}
           </div>
-          <div className="vy-tile__value vy-tile__value--count" style={{ color: 'var(--vy-dex-gold)' }}>
-            {fmtVy(floors.burnBoughtBackVy)}
+          <div className="vy-tile__value vy-tile__value--count" style={{ color: '#1d5fd0' }}>
+            {fmtUsd(floors.tvl, 0)}
           </div>
           <div className="vy-tile__hint">
             {tr(
-              'bought back to date, plus what the buyback officers hold right now',
-              'recomprado hasta hoy, más lo que los oficiales de recompra mantienen ahora',
+              'everything the system holds or is owed back',
+              'todo lo que el sistema tiene o le deben',
+            )}
+          </div>
+          <div className="vy-tile__caveat">
+            {tr(
+              'hard assets on hand plus the face value of the loan book — assets out with borrowers, owed back to unlock their collateral',
+              'activos duros disponibles más el valor nominal del libro de préstamos — activos en manos de prestatarios, que deben devolverse para liberar su garantía',
             )}
           </div>
         </div>
@@ -461,7 +511,10 @@ export function EraLadder({
         <span>
           VY <strong>${vyPriceUsd.toFixed(4)}</strong>
           <span className="vy-ladder__foot-sep">·</span>
-          {tr('market cap = this price × total supply', 'capitalización de mercado = este precio × suministro total')}
+          {tr(
+            'treasury value × total supply, as the contract computes it — the era ratchet reads this, not the public pool',
+            'valor del tesoro × suministro total, tal como lo calcula el contrato — el trinquete de eras lee esto, no el pool público',
+          )}
         </span>
         {hasFixed && (
           <span>

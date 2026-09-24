@@ -13,8 +13,8 @@
    "startBlock": 24867000,
    "startBlockReason": "VY's first transfer — src/utils/logs.ts's VY_GENESIS_BLOCK",
    "sampling": "one sample per block where the base changes, thinned to equal block windows, plus a zero anchor at genesis; a fixed stride would redraw a flat line through empty quarters",
-   "changeBlockCount": 2806,
-   "verifiedAgainst": "balanceOf(officers) at block 26036368"
+   "changeBlockCount": 2830,
+   "verifiedAgainst": "balanceOf(officers) at block 26044871"
   },
   "projection": {
    "bookVy": "projCurve.vyBoughtFull in src/pages/Mainnet.tsx — sum over venues of vy * heldUsd / (depthUsd + heldUsd)",
@@ -41,7 +41,7 @@
   }
  },
  "stride": 1800,
- "builtAtBlock": 26036368,
+ "builtAtBlock": 26044871,
  "degradedSampleCount": 0,
  "degraded": [],
  "samples": [
@@ -3276,14 +3276,54 @@
    "arbUsd": 373.59165
   },
   {
-   "block": 26036368,
-   "ts": 1790120447,
+   "block": 26037890,
+   "ts": 1790138819,
    "boughtBackVy": 958734.76042,
-   "heldVy": 116682.054188,
-   "bookVy": 55927.678367,
-   "arbVy": 359.272003,
-   "bookUsd": 157336.50957,
-   "arbUsd": 385.20401
+   "heldVy": 117822.120972,
+   "bookVy": 55394.710357,
+   "arbVy": 637.881551,
+   "bookUsd": 157193.410055,
+   "arbUsd": 677.366889
+  },
+  {
+   "block": 26039690,
+   "ts": 1790160575,
+   "boughtBackVy": 958734.76042,
+   "heldVy": 117822.120972,
+   "bookVy": 55394.710357,
+   "arbVy": 568.751169,
+   "bookUsd": 155250.291015,
+   "arbUsd": 600.562533
+  },
+  {
+   "block": 26041490,
+   "ts": 1790182379,
+   "boughtBackVy": 958734.76042,
+   "heldVy": 117823.806581,
+   "bookVy": 55258.55454,
+   "arbVy": 323.331966,
+   "bookUsd": 152640.149353,
+   "arbUsd": 344.14685
+  },
+  {
+   "block": 26043290,
+   "ts": 1790204147,
+   "boughtBackVy": 958734.76042,
+   "heldVy": 117868.145269,
+   "bookVy": 56004.549561,
+   "arbVy": 857.547786,
+   "bookUsd": 153357.467147,
+   "arbUsd": 858.615951
+  },
+  {
+   "block": 26044871,
+   "ts": 1790223227,
+   "boughtBackVy": 958734.76042,
+   "heldVy": 117919.13611,
+   "bookVy": 55697.244419,
+   "arbVy": 0,
+   "bookUsd": 152761.268605,
+   "arbUsd": 0
   }
  ]
 }

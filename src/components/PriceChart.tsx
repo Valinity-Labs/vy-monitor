@@ -129,6 +129,21 @@ export interface ChartOverlay {
   baseLabel?: string;
   /** Own-pane only: how the panel's numbers are written. 'volume' abbreviates 1,073,554 to 1.073M. */
   format?: 'price' | 'volume';
+  /**
+   * Draws a BAND around `valueAt` instead of a line: a solid edge at ±`outer` and a fade that
+   * starts at ±`inner`, built from `steps` stacked fills because the library's own gradient is
+   * anchored to fixed prices and cannot follow a moving line.
+   */
+  band?: {
+    /** Where the fade starts and ends, as fractions of the centre (0.15 → 0.25). */
+    inner: number;
+    outer: number;
+    /** Sub-bands in the fade. More is smoother and costs one plot each. */
+    steps: number;
+    /** Above the centre and below it. */
+    upColor: string;
+    downColor: string;
+  };
 }
 
 /** Price scale the chart opens on: true = logarithmic, false = linear. */
@@ -159,6 +174,7 @@ function windowPriceBand(
   const step = (to - from) / 64;
   for (const o of overlays) {
     if (o.pane === 'own') continue; // counts, not prices — they have their own scale
+    if (o.band) continue;           // drawn around a line that is already in the band
     for (let ts = from; ts <= to; ts += step) {
       const v = o.valueAt(ts * 1000);
       if (!Number.isFinite(v) || v <= 0) continue;
@@ -176,6 +192,96 @@ const NO_VISIBLE: Record<string, boolean> = {};
 // Only the parts of the library's PineJS helper the overlay indicators call.
 interface TVPineJS {
   Std: { time: (ctx: unknown) => number; period: (ctx: unknown) => string };
+}
+
+/**
+ * A BAND overlay as a custom indicator: two solid edges at ±outer with a fade between ±inner and
+ * ±outer, drawn around whatever `centreAt` returns on each bar.
+ *
+ * The fade is `steps` stacked fills rather than a gradient. The library does have a gradient fill
+ * style, but its stops are fixed PRICES, and this band follows a line that moves every bar — so a
+ * gradient would smear across the chart instead of hugging the edge. Each sub-band's opacity is
+ * the PROBABILITY the bot acts in it: with the trigger drawn uniformly between inner and outer,
+ * the chance of firing at distance d is (d - inner) / (outer - inner), which is 0 at the inner
+ * edge and 1 at the solid line.
+ *
+ * Every plot is display = Pane only, so twelve boundaries do not put twelve numbers in the legend
+ * — the study contributes one row, which is also its on/off switch.
+ */
+function bandIndicator(
+  PineJS: TVPineJS, o: ChartOverlay, centreAt: (ms: number) => number,
+  closeAt: (period: string, barMs: number) => number
+) {
+  const band = o.band!;
+  const n = band.steps;
+  // Boundaries from the inner edge outward, above the centre then below it.
+  const offsets = Array.from({ length: n + 1 }, (_, i) => band.inner + ((band.outer - band.inner) * i) / n);
+  const ids = [...offsets.map((_, i) => `plot_${i}`), ...offsets.map((_, i) => `plot_${n + 1 + i}`)];
+  const edge = (i: number) => i === n;   // the solid line sits on the outer boundary
+
+  const styles: Record<string, Record<string, unknown>> = {};
+  ids.forEach((id, k) => {
+    const i = k <= n ? k : k - (n + 1);
+    const up = k <= n;
+    styles[id] = {
+      linestyle: 0, linewidth: edge(i) ? 2 : 1, plottype: 0, trackPrice: false,
+      // Only the outer edge is a line; the rest exist to bound the fills.
+      transparency: edge(i) ? 0 : 100, visible: true, display: 1,
+      color: up ? band.upColor : band.downColor,
+    };
+  });
+
+  const filledAreas = [];
+  const filledAreasStyle: Record<string, Record<string, unknown>> = {};
+  for (let i = 0; i < n; i++) {
+    for (const up of [true, false]) {
+      const a = up ? `plot_${i}` : `plot_${n + 1 + i}`;
+      const b = up ? `plot_${i + 1}` : `plot_${n + 2 + i}`;
+      const id = `${up ? 'up' : 'dn'}_${i}`;
+      filledAreas.push({
+        id, objAId: a, objBId: b, type: 'plot_plot', title: id, isHidden: true,
+      });
+      // Opacity IS the probability the bot fires in this slice of the band.
+      const p = (i + 0.5) / n;
+      filledAreasStyle[id] = {
+        color: up ? band.upColor : band.downColor,
+        transparency: Math.round(92 - p * 45),
+        visible: true,
+      };
+    }
+  }
+
+  return {
+    name: o.label,
+    metainfo: {
+      _metainfoVersion: 53,
+      id: `vy-band-${o.id}@tv-basicstudies-1`,
+      description: o.label,
+      shortDescription: o.label,
+      is_price_study: true,
+      isCustomIndicator: true,
+      linkedToSeries: true,
+      format: { type: 'inherit' },
+      plots: ids.map((id) => ({ id, type: 'line' })),
+      filledAreas,
+      defaults: { styles, filledAreasStyle, inputs: {} },
+      styles: Object.fromEntries(ids.map((id, k) => [id, {
+        title: `${o.label} ${k <= n ? 'upper' : 'lower'} ${Math.round(offsets[k <= n ? k : k - (n + 1)] * 100)}%`,
+        histogramBase: 0,
+      }])),
+      inputs: [],
+    },
+    constructor: function (this: { main: (ctx: unknown) => number[] }) {
+      this.main = (ctx) => {
+        const t = PineJS.Std.time(ctx);
+        if (!Number.isFinite(t)) return ids.map(() => NaN);
+        const ms = t < 1e11 ? t * 1000 : t;
+        const c = centreAt(closeAt(PineJS.Std.period(ctx), ms));
+        if (!(c > 0)) return ids.map(() => NaN);
+        return [...offsets.map((d) => c * (1 + d)), ...offsets.map((d) => c * (1 - d))];
+      };
+    },
+  };
 }
 
 /**
@@ -427,12 +533,18 @@ export function PriceChart({
           ],
           enabled_features: ['hide_left_toolbar_by_default'],
           custom_indicators_getter: (PineJS: TVPineJS) =>
-            Promise.resolve(specs.map((o) => overlayIndicator(
-              PineJS, o,
-              (ms) => overlaysRef.current.find((x) => x.id === o.id)?.valueAt(ms) ?? NaN,
-              closeAt,
-              (ms) => overlaysRef.current.find((x) => x.id === o.id)?.baseValueAt?.(ms) ?? NaN,
-            ))),
+            Promise.resolve(specs.map((o) => (o.band
+              ? bandIndicator(
+                PineJS, o,
+                (ms) => overlaysRef.current.find((x) => x.id === o.id)?.valueAt(ms) ?? NaN,
+                closeAt,
+              )
+              : overlayIndicator(
+                PineJS, o,
+                (ms) => overlaysRef.current.find((x) => x.id === o.id)?.valueAt(ms) ?? NaN,
+                closeAt,
+                (ms) => overlaysRef.current.find((x) => x.id === o.id)?.baseValueAt?.(ms) ?? NaN,
+              )))),
           // The overlay indicators read this component's data through their closures, which a
           // worker thread cannot see — keep indicator maths on the main thread.
           workers: { enabled: false },

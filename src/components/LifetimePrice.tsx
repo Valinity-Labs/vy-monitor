@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLiveTail } from '../utils/liveTail';
 import { PriceChart, type ChartOverlay } from './PriceChart';
 import { TradeTape } from './TradeTape';
@@ -14,7 +14,11 @@ import {
 import {
   mergeVyBuybackSamples, VY_BUYBACK_SNAPSHOT, vyBuybackFutureUsdAt, vyBuybackFutureVyAt,
 } from '../utils/vyBuybackHistory';
+import {
+  mergeVySheetSamples, VY_SHEET_SNAPSHOT, vyHoldingsAt, vyLiquidEquityAt, vyMcapAt, vyTvlAt,
+} from '../utils/vySheetHistory';
 import { DATE_LOCALE, tr } from '../utils/i18n';
+import { useTheme } from '../utils/theme';
 
 /**
  * VALINITY PRICE — the page's lead section: candles above, the tape below.
@@ -23,8 +27,9 @@ import { DATE_LOCALE, tr } from '../utils/i18n';
  * Genesis" widens the chart, the stats and the tape together to every contract since 2021 (MFC
  * on BNB Chain, then VY on Ethereum), so all three always describe the same set of trades.
  *
- * The current-pool view draws two reference lines beside the candles. FAIR VALUE is the official
- * DEX-oracle median VY/USD across the VY/WETH, VY/WBTC and VY/PAXG treasury pools. PROJECTED —
+ * The current-pool view draws two reference lines beside the candles. TREASURY VALUE is the
+ * official DEX-oracle median VY/USD across the VY/WETH, VY/WBTC and VY/PAXG treasury pools — the
+ * treasury's own venues, which the public cannot trade on; the candles are the public pool. PROJECTED —
  * shaded, because it is a simulation and not a market — is where VMMO's whole book would take VY
  * in its best venue, replayed block by block (scripts/build-vy-projection-history.mjs). It starts
  * where VMMO was deployed and nowhere earlier. Neither line can be switched off: they are the two
@@ -41,10 +46,50 @@ import { DATE_LOCALE, tr } from '../utils/i18n';
 
 const LIVE_ERA: EraId = 'vy-current';
 const FAIR_VALUE_ID = 'vy-fair-value';
-const FAIR_VALUE_LABEL = tr('Fair Value', 'Valor Justo');
+const FAIR_VALUE_LABEL = tr('Treasury Value', 'Valor del Tesoro');
 const PROJECTED_ID = 'vy-projected';
 const PROJECTED_LABEL = tr('Projected', 'Proyectado');
 const PRICE_LABEL = tr('Price', 'Precio');
+/**
+ * Treasury Value is drawn in the page's INK — black on the light chart, near-white on the dark
+ * one. It is the one line that follows the theme, and deliberately: "black" has no counterpart on
+ * a near-black background, and a line that cannot be seen is worse than one that changes shade.
+ * Every other line keeps a single colour in both themes.
+ */
+const TREASURY_INK = { light: '#000000', dark: '#f0f0f0' };
+const BOOKS_ID = 'vy-books';
+const BOOKS_LABEL = tr('Holdings', 'Tenencias');
+const EQUITY_LABEL = tr('Liquid equity', 'Patrimonio líquido');
+const LOCKED_ID = 'vy-locked';
+const LOCKED_LABEL = tr('Total Value Locked', 'Valor Total Bloqueado');
+const MCAP_LABEL = tr('Market cap', 'Capitalización');
+/**
+ * Four balance-sheet totals in two panels, in shades of one blue. They are split because their
+ * scales are: TVL and market cap are in the millions, holdings and liquid equity in the hundreds
+ * of thousands, and on one panel the smaller pair would be a flat line along the floor.
+ */
+const BLUE_DEEP = '#1d5fd0';
+const BLUE_MID = '#3b82f6';
+const BLUE_LIGHT = '#6aa9f7';
+const BLUE_PALE = '#9dc4fb';
+const BOT_ID = 'vy-bot-zone';
+const BOT_LABEL = tr('Bot Zone', 'Zona del Bot');
+
+/**
+ * THE MEV BOT'S TRIGGER ENVELOPE, around Treasury Value.
+ *
+ * The bot acts when the public pool is far enough from the treasury's own value: below it it
+ * buys, above it it sells. The trigger is drawn at random between INNER and OUTER each time, so
+ * nothing happens inside ±INNER, it is certain past ±OUTER, and in between the chance rises
+ * linearly — which is exactly what the shading shows.
+ *
+ * Transcribed from ValinityMEVBotV2, NOT read from it: if the contract's bounds change, these
+ * numbers have to change with them.
+ */
+const BOT_BAND = { inner: 0.15, outer: 0.25, steps: 5 };
+// Red above (where it sells), green below (where it buys) — one colour each, both themes.
+const BOT_SELL = '#e0483d';
+const BOT_BUY = '#2eb872';
 const FUTURE_ID = 'vy-buyback-future';
 const FUTURE_LABEL = tr('Future Buyback', 'Recompra Futura');
 
@@ -107,17 +152,93 @@ const fmtPct = (ratio: number) => {
 
 // One shared empty list, so the Since Genesis view does not rebuild the chart when the
 // benchmark tail arrives.
-// The tape does not scroll inside itself, so it shows what fits under the chart and no more.
+/**
+ * The tape is a WINDOW, not a list: TAPE_ROWS rows are on screen and the rest roll inside it. The
+ * cap is what the window can reach — every trade is in memory already, but 1,700 rows of DOM is a
+ * different thing from 1,700 objects, and nobody scrolls that far in a tape anyway.
+ */
 const TAPE_ROWS = 12;
+const TAPE_MAX = 200;
+/** Row height in the tape, used to size the window to a whole number of rows. */
+const TAPE_ROW_PX = 30;
 
 const NO_OVERLAYS: ChartOverlay[] = [];
 // The chart is what the page is for, so it gets real height — except on a phone, where 620px
 // would be the whole screen. Decided once at load, like the language.
 const CHART_HEIGHT =
   typeof window !== 'undefined' && window.matchMedia('(max-width: 40rem)').matches ? 440 : 620;
+/** How far the chart can be dragged, and where a double-click puts it back. */
+const CHART_MIN = 320;
+const CHART_MAX = 1400;
+
+/** Per-viewer conveniences only. Absent, blocked or corrupt storage just means the default. */
+const readStored = (key: string, fallback: number) => {
+  try {
+    const v = Number(localStorage.getItem(key));
+    return Number.isFinite(v) && v > 0 ? v : fallback;
+  } catch { return fallback; }
+};
+const writeStored = (key: string, v: number) => {
+  try { localStorage.setItem(key, String(v)); } catch { /* private mode */ }
+};
+
+/**
+ * The grip under a resizable section: drag it to size the section, click it for one step, and
+ * double-click to put it back. Pointer events, so a finger drags it exactly as a mouse does.
+ */
+function DragBar({
+  label, hint, onDrag, onStep, onReset,
+}: {
+  label: string; hint: string;
+  onDrag: (dy: number) => void; onStep: () => void; onReset: () => void;
+}) {
+  const last = useRef<number | null>(null);
+  const moved = useRef(false);
+  return (
+    <div
+      className="vy-drag"
+      role="separator"
+      aria-orientation="horizontal"
+      aria-label={label}
+      tabIndex={0}
+      onPointerDown={(e) => {
+        last.current = e.clientY;
+        moved.current = false;
+        e.currentTarget.setPointerCapture(e.pointerId);
+      }}
+      onPointerMove={(e) => {
+        if (last.current === null) return;
+        const dy = e.clientY - last.current;
+        if (Math.abs(dy) < 1) return;
+        last.current = e.clientY;
+        moved.current = true;
+        onDrag(dy);
+      }}
+      onPointerUp={(e) => {
+        last.current = null;
+        e.currentTarget.releasePointerCapture(e.pointerId);
+        // A grip that only drags is a grip half the viewers never find.
+        if (!moved.current) onStep();
+      }}
+      onDoubleClick={onReset}
+      onKeyDown={(e) => {
+        if (e.key === 'ArrowDown') { e.preventDefault(); onDrag(TAPE_ROW_PX); }
+        if (e.key === 'ArrowUp') { e.preventDefault(); onDrag(-TAPE_ROW_PX); }
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onStep(); }
+      }}
+      title={hint}
+    >
+      <span className="vy-drag__grip" />
+      <span className="vy-drag__hint">{hint}</span>
+      <span className="vy-drag__grip" />
+    </div>
+  );
+}
+
 // Both lines start on; each legend chip is the switch for its own line.
 const LINES_ON: Record<string, boolean> = {
-  [FAIR_VALUE_ID]: true, [PROJECTED_ID]: true, [FUTURE_ID]: true,
+  [FAIR_VALUE_ID]: true, [PROJECTED_ID]: true, [FUTURE_ID]: true, [BOT_ID]: true,
+  [BOOKS_ID]: true, [LOCKED_ID]: true,
 };
 
 function Stat({ label, value, lead }: { label: string; value: string; lead?: boolean }) {
@@ -135,6 +256,14 @@ const DEFAULT_RANGE: Record<View, RangeKey> = { live: '30d', genesis: 'all' };
 const openingRange = (v: View) => ({ key: DEFAULT_RANGE[v], from: rangeStart(DEFAULT_RANGE[v], Date.now()) });
 
 export function LifetimePrice({ onReady }: { onReady?: () => void }) {
+  const theme = useTheme();
+  // Both sizes are the viewer's own, remembered on this device and nowhere else.
+  const [chartHeight, setChartHeight] = useState(() => readStored('vy-chart-height', CHART_HEIGHT));
+  const resizeChart = useCallback((dy: number) => setChartHeight((h) => {
+    const next = Math.min(CHART_MAX, Math.max(CHART_MIN, Math.round(h + dy)));
+    writeStored('vy-chart-height', next);
+    return next;
+  }), []);
   const [view, setView] = useState<View>('live');
   // The start is fixed when the range is chosen, so "last 3 months" does not creep forward (and
   // rebuild the chart) on every re-render.
@@ -171,6 +300,10 @@ export function LifetimePrice({ onReady }: { onReady?: () => void }) {
   const buybackSamples = useMemo(
     () => mergeVyBuybackSamples(VY_BUYBACK_SNAPSHOT, tail.vyBuyback),
     [tail.vyBuyback]
+  );
+  const sheetSamples = useMemo(
+    () => mergeVySheetSamples(VY_SHEET_SNAPSHOT, tail.vySheet),
+    [tail.vySheet]
   );
 
   const shown = useMemo(
@@ -218,8 +351,16 @@ export function LifetimePrice({ onReady }: { onReady?: () => void }) {
     return [{
       id: FAIR_VALUE_ID,
       label: FAIR_VALUE_LABEL,
-      color: '#c9a227',
+      color: TREASURY_INK[theme],
       lineWidth: 3,
+      locked: true,
+      valueAt: (ms: number) => vyOraclePriceAt(oracleSamples, ms),
+    }, {
+      // The bot's envelope, drawn around the line above — the same number it measures against.
+      id: BOT_ID,
+      label: BOT_LABEL,
+      color: BOT_SELL,
+      band: { ...BOT_BAND, upColor: BOT_SELL, downColor: BOT_BUY },
       locked: true,
       valueAt: (ms: number) => vyOraclePriceAt(oracleSamples, ms),
     }, {
@@ -251,8 +392,36 @@ export function LifetimePrice({ onReady }: { onReady?: () => void }) {
       // 13%. They sit close enough in magnitude ($148k against 55k VY) to share one scale.
       valueAt: (ms: number) => vyBuybackFutureUsdAt(buybackSamples, ms),
       baseValueAt: (ms: number) => vyBuybackFutureVyAt(buybackSamples, ms),
+    }, {
+      // What the system holds, and what is left of it after the stakers' claim. The gap between
+      // the two lines IS the debt.
+      id: BOOKS_ID,
+      label: tr('Holdings · Liquid equity', 'Tenencias · Patrimonio líquido'),
+      baseLabel: EQUITY_LABEL,
+      color: BLUE_PALE,
+      lineColor: BLUE_MID,
+      lineWidth: 2,
+      pane: 'own',
+      format: 'volume',
+      locked: true,
+      valueAt: (ms: number) => vyHoldingsAt(sheetSamples, ms),
+      baseValueAt: (ms: number) => vyLiquidEquityAt(sheetSamples, ms),
+    }, {
+      // The two big ones, on a panel of their own: at ~$11.7M and ~$19.4M they would flatten the
+      // pair above into the floor if they shared a scale with them.
+      id: LOCKED_ID,
+      label: tr('Total Value Locked · Market cap', 'Valor Total Bloqueado · Capitalización'),
+      baseLabel: MCAP_LABEL,
+      color: BLUE_LIGHT,
+      lineColor: BLUE_DEEP,
+      lineWidth: 2,
+      pane: 'own',
+      format: 'volume',
+      locked: true,
+      valueAt: (ms: number) => vyTvlAt(sheetSamples, ms),
+      baseValueAt: (ms: number) => vyMcapAt(sheetSamples, ms),
     }];
-  }, [view, anchor, oracleSamples, projectionSamples, buybackSamples]);
+  }, [view, anchor, oracleSamples, projectionSamples, buybackSamples, sheetSamples, theme]);
 
   const empty = !shown.length;
   useEffect(() => { if (empty) onReady?.(); }, [empty, onReady]);
@@ -273,6 +442,7 @@ export function LifetimePrice({ onReady }: { onReady?: () => void }) {
   const last = shown[shown.length - 1];
   const start = anchor ?? { ts: first.ts, price: first.price };
   const resolution = RANGES.find((r) => r.key === range.key)?.resolution ?? cfg.resolution;
+  const periodLabel = RANGES.find((r) => r.key === range.key)?.label ?? tr('All', 'Todo');
   const prices = shown.map((t: Trade) => t.price);
   const low = Math.min(...prices);
   const high = Math.max(...prices);
@@ -281,6 +451,8 @@ export function LifetimePrice({ onReady }: { onReady?: () => void }) {
   const projectedAtChartEnd = vyProjectionPriceAt(projectionSamples, chartEndTs * 1000);
   const futureVyAtChartEnd = vyBuybackFutureVyAt(buybackSamples, chartEndTs * 1000);
   const futureUsdAtChartEnd = vyBuybackFutureUsdAt(buybackSamples, chartEndTs * 1000);
+  const holdingsAtChartEnd = vyHoldingsAt(sheetSamples, chartEndTs * 1000);
+  const tvlAtChartEnd = vyTvlAt(sheetSamples, chartEndTs * 1000);
 
   return (
     <div className="vy-price">
@@ -352,13 +524,27 @@ export function LifetimePrice({ onReady }: { onReady?: () => void }) {
                 aria-pressed={!!linesOn[FAIR_VALUE_ID]}
                 onClick={() => setLinesOn((prev) => ({ ...prev, [FAIR_VALUE_ID]: !prev[FAIR_VALUE_ID] }))}
                 title={tr(
-                  'Time-weighted median VY/USD price from the Valinity DEX VY/ETH, VY/BTC and VY/Gold pools',
-                  'Precio medio ponderado por tiempo de VY/USD en los pools VY/ETH, VY/BTC y VY/Oro del DEX de Valinity'
+                  "The treasury's own value for VY: the time-weighted median across the Valinity DEX VY/ETH, VY/BTC and VY/Gold pools. The public pool is not in it.",
+                  'El valor propio del tesoro para VY: la mediana ponderada por tiempo en los pools VY/ETH, VY/BTC y VY/Oro del DEX de Valinity. El pool público no forma parte de ella.'
                 )}
               >
                 <span className="vy-price__bench-swatch vy-price__bench-swatch--oracle" />
                 <strong>{FAIR_VALUE_LABEL}</strong>{' '}
                 {Number.isFinite(oracleAtChartEnd) ? fmtPrice(oracleAtChartEnd) : '—'}
+              </button>
+              <button
+                type="button"
+                className="vy-price__bench-item vy-price__bench-toggle vy-price__bench-bot"
+                aria-pressed={!!linesOn[BOT_ID]}
+                onClick={() => setLinesOn((prev) => ({ ...prev, [BOT_ID]: !prev[BOT_ID] }))}
+                title={tr(
+                  `Where the Valinity MEV bot acts: it sells above treasury value and buys below it, at a threshold drawn at random between ${BOT_BAND.inner * 100}% and ${BOT_BAND.outer * 100}%. The shading is how likely it is to fire — nothing at the inner edge, certain at the solid line.`,
+                  `Donde actúa el bot MEV de Valinity: vende por encima del valor del tesoro y compra por debajo, con un umbral elegido al azar entre ${BOT_BAND.inner * 100}% y ${BOT_BAND.outer * 100}%. El sombreado es la probabilidad de que actúe — nula en el borde interior, segura en la línea sólida.`,
+                )}
+              >
+                <span className="vy-price__bench-swatch vy-price__bench-swatch--bot" />
+                <strong>{BOT_LABEL}</strong>{' '}
+                {`±${BOT_BAND.inner * 100}–${BOT_BAND.outer * 100}%`}
               </button>
               <button
                 type="button"
@@ -389,8 +575,48 @@ export function LifetimePrice({ onReady }: { onReady?: () => void }) {
                 {Number.isFinite(futureUsdAtChartEnd) ? fmtUsdShort(futureUsdAtChartEnd) : '—'}
                 {Number.isFinite(futureVyAtChartEnd) ? ` · ${fmtVy(futureVyAtChartEnd)}` : ''}
               </button>
-              <span className="vy-price__bench-item">
-                <strong>VY</strong> {fmtPct(last.price / start.price - 1)}
+              {/* VY's move over the window ON SCREEN — the same pill as the line chips, ringed
+                  and coloured in the direction of the move, with the window it measures on its
+                  right. Not a switch: there is nothing here to turn off. */}
+              <button
+                type="button"
+                className="vy-price__bench-item vy-price__bench-toggle vy-price__bench-books"
+                aria-pressed={!!linesOn[BOOKS_ID]}
+                onClick={() => setLinesOn((prev) => ({ ...prev, [BOOKS_ID]: !prev[BOOKS_ID] }))}
+                title={tr(
+                  'What the system holds, and what is left of it after the stakers\' claim — the gap between the two lines is the debt',
+                  'Lo que el sistema tiene, y lo que queda tras el derecho de los stakers — la diferencia entre las dos líneas es la deuda',
+                )}
+              >
+                <span className="vy-price__bench-swatch vy-price__bench-swatch--books" />
+                <strong>{BOOKS_LABEL}</strong>{' '}
+                {Number.isFinite(holdingsAtChartEnd) ? fmtUsdShort(holdingsAtChartEnd) : '—'}
+              </button>
+              <button
+                type="button"
+                className="vy-price__bench-item vy-price__bench-toggle vy-price__bench-locked"
+                aria-pressed={!!linesOn[LOCKED_ID]}
+                onClick={() => setLinesOn((prev) => ({ ...prev, [LOCKED_ID]: !prev[LOCKED_ID] }))}
+                title={tr(
+                  'Every asset the system holds or is owed back, against the market cap the contract strikes at its own oracle',
+                  'Todos los activos que el sistema tiene o le deben, frente a la capitalización que el contrato calcula con su propio oráculo',
+                )}
+              >
+                <span className="vy-price__bench-swatch vy-price__bench-swatch--locked" />
+                <strong>{LOCKED_LABEL}</strong>{' '}
+                {Number.isFinite(tvlAtChartEnd) ? fmtUsdShort(tvlAtChartEnd) : '—'}
+              </button>
+              <span
+                className={`vy-price__bench-item vy-price__bench-change${
+                  last.price < start.price ? ' vy-price__bench-change--down' : ''}`}
+                title={tr(
+                  `VY from ${fmtDate(start.ts)} to ${fmtDate(last.ts)} — the window the chart is showing`,
+                  `VY del ${fmtDate(start.ts)} al ${fmtDate(last.ts)} — la ventana que muestra el gráfico`,
+                )}
+              >
+                <strong>VY</strong>
+                <span className="vy-price__bench-change__pct">{fmtPct(last.price / start.price - 1)}</span>
+                <span className="vy-price__bench-period">{periodLabel}</span>
               </span>
             </div>
           )}
@@ -398,16 +624,25 @@ export function LifetimePrice({ onReady }: { onReady?: () => void }) {
           <PriceChart
             trades={charted} seriesKey={view} symbol={cfg.symbol} exchange={cfg.exchange}
             resolution={resolution} overlays={overlays} visibleFrom={range.from ?? undefined}
-            height={CHART_HEIGHT}
+            height={chartHeight}
             overlayVisible={linesOn} priceVisible={priceOn} onReady={onReady}
             onOverlayToggle={(id, on) =>
               setLinesOn((prev) => (!!prev[id] === on ? prev : { ...prev, [id]: on }))}
           />
 
+          <DragBar
+            label={tr('Resize the chart', 'Cambiar el tamaño del gráfico')}
+            hint={tr('drag to resize · double-click to reset', 'arrastra para redimensionar · doble clic para restablecer')}
+            onDrag={resizeChart}
+            onStep={() => resizeChart(120)}
+            onReset={() => { setChartHeight(CHART_HEIGHT); writeStored('vy-chart-height', CHART_HEIGHT); }}
+          />
+
           <TradeTape
             trades={shown}
             symbol="VY"
-            limit={TAPE_ROWS}
+            limit={TAPE_MAX}
+            visibleRows={TAPE_ROWS}
             note={view === 'genesis'
               ? tr("Amounts are in each era's own token — MFC on BNB Chain, VY on Ethereum — and link to that chain's explorer.",
                 'Los montos están en el token de cada era — MFC en BNB Chain, VY en Ethereum — y enlazan al explorador de esa red.')
