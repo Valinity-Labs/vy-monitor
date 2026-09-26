@@ -11,6 +11,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
+    "test:committed": "node --test tests/committedSupply*.test.mjs",
     "watch:oracle": "node oracle-watch.mjs",
     "check:oracle": "node oracle-watch.mjs --once",
     "preview": "vite preview"

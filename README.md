@@ -54,6 +54,22 @@ src/
 - `ValinityToken` (VY) - Token nativo
 - `ValinityRegistrar` - Registro dinámico de contratos
 
+### VY comprometido — próximos seis meses
+
+La fila de Token Overview suma obligaciones actuales desde un mismo bloque de Ethereum hasta
+seis meses calendario después (UTC): capital de VSR que vence en el período, rendimiento VY
+pendiente de VYO que se puede reclamar hasta esa fecha (neto de retención y comisión), VY
+vendido en VPSO y VIO que vence en el período, y tramos legacy de VLO ya pagados y sin reclamar.
+Incluye obligaciones vencidas aún sin reclamar y tramos pagados aunque quede otra deuda legacy.
+Excluye inventario de tesorería sin comprometer y pagos ya realizados. Las renovaciones se leen
+de los registros actuales, sin sumar otra vez sus eventos históricos.
+
+Es una medida de compromisos, no un aumento que deba sumarse al suministro circulante:
+parte de ese VY ya está contabilizado allí. Los seguros pueden liquidarse en USDC y las
+renovaciones/salidas anticipadas pueden cambiar el monto o la fecha. El desglose se abre desde
+la etiqueta. Se actualiza cada minuto; si falla alguna fuente, muestra «No disponible».
+Pruebas del cálculo y sus lecturas: `npm run test:committed` (Node 24).
+
 ## 📦 Scripts Disponibles
 
 ```bash

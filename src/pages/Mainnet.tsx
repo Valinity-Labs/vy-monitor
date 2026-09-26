@@ -5,6 +5,7 @@ import { useEffect, useState, type JSX } from 'react';
 import { createPublicClient, http, parseAbiItem, type Address } from 'viem';
 import { mainnet } from 'viem/chains';
 import { Value } from '../components/core';
+import { CommittedSupplyRow } from '../components/CommittedSupplyRow';
 import { BackingTiles, HoldingsTable, EraLadder, TradingVolume, MarketMakerDesk, type AssetMult } from '../components/BalanceSheet';
 import type { VolumeData } from '../components/BalanceSheet';
 import { CONTRACT_ACRONYMS, MAINNET_RPC_URL, RPC_HTTP_OPTS } from '../config';
@@ -1481,6 +1482,7 @@ function Content({ data, volume, volProgress, holders }: { data: MonitorData; vo
                 { label: tr('VY in User Wallets', 'VY en Billeteras de Usuarios'), value: data.lps['VY in User Wallets'] },
                 { label: 'Holders', value: holders },
               ]}
+              extraFooter={<CommittedSupplyRow client={client} />}
             />
           </div>
           <div className="vy-split__right">
@@ -1724,10 +1726,11 @@ type SummaryValue = Amount<bigint> | number | null;
 const summaryCell = (v: SummaryValue) =>
   v instanceof Amount ? <Value includeSybmol={false}>{v}</Value> : v === null ? '…' : v.toLocaleString('en-US');
 
-const BalanceTable = ({ data, headerRows, footerRows }: {
+const BalanceTable = ({ data, headerRows, footerRows, extraFooter }: {
   data: { [key: string]: Amount<bigint>[] }
   headerRows?: { label: string; value: SummaryValue }[]
   footerRows?: { label: string; value: SummaryValue }[]
+  extraFooter?: JSX.Element
 }) => {
   const totals: Amount<bigint>[] = [];
 
@@ -1769,14 +1772,15 @@ const BalanceTable = ({ data, headerRows, footerRows }: {
           </tr>
         ))}
       </tbody>
-      {footerRows && footerRows.length > 0 && (
+      {((footerRows && footerRows.length > 0) || extraFooter) && (
         <tfoot>
-          {footerRows.map(row => (
+          {footerRows?.map(row => (
             <tr key={row.label}>
               <td>{row.label}</td>
               <td>{summaryCell(row.value)}</td>
             </tr>
           ))}
+          {extraFooter}
         </tfoot>
       )}
     </table>
